@@ -1,0 +1,9 @@
+# Ignore Quartus installers (they're huge, 5-10GB)
+installers/*.run
+installers/*.tar
+installers/*.gz
+
+# Ignore build artifacts
+*.log
+*.rpt
+*.summary

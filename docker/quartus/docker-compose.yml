@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  quartus:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: quartus-lite:23.1std
+    container_name: quartus-dev
+    hostname: quartus-builder
+
+    # Mount project directory
+    volumes:
+      - ../../:/workspace                          # Project root
+      - quartus-install:/home/quartus/intelFPGA_lite  # Persistent Quartus install
+      - quartus-installers:/home/quartus/installers   # For installer downloads
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw           # X11 socket for GUI
+
+    # Environment for X11 forwarding
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - QT_X11_NO_MITSHM=1
+      - QUARTUS_ROOTDIR=/home/quartus/intelFPGA_lite/23.1std/quartus
+
+    # USB device access (for USB-Blaster programming)
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+
+    # Privileged mode for USB access (required for Colima)
+    privileged: true
+
+    # Network mode
+    network_mode: host
+
+    # Keep container running
+    stdin_open: true
+    tty: true
+
+    working_dir: /workspace
+
+    command: /bin/bash
+
+volumes:
+  quartus-install:
+    driver: local
+  quartus-installers:
+    driver: local

@@ -106,12 +106,59 @@ quartus_sh --version
 **Warning**: Intel dropped native macOS support after Quartus 19.1. Options:
 - Use Quartus 19.1 (old but works natively)
 - Run Linux VM with Quartus
-- Use Docker container (see below)
+- **Use Docker + Colima** (recommended - see below)
 
-### Docker Alternative (Cross-Platform)
+### Option 4: Docker + Colima (Recommended for macOS)
+
+**Perfect if you're already using Colima for the OpenXC7 workflow!**
+
+We've created a complete Docker setup that works seamlessly with Colima:
 
 ```bash
-# Use unofficial Docker image with Quartus Lite
+# Quick Start
+cd docker/quartus
+
+# 1. Download Quartus installer (manual step, ~5-6GB)
+# See: docker/quartus/installers/README.md
+
+# 2. Build and install
+docker-compose build
+./quartus-docker.sh install
+
+# 3. Verify
+./quartus-docker.sh quartus --version
+
+# 4. Build your project
+./quartus-docker.sh build de10_blinky
+
+# 5. Program FPGA
+./quartus-docker.sh program output_files/de10_blinky.sof
+```
+
+**Full Documentation**: See [`docker/quartus/README.md`](docker/quartus/README.md) for:
+- Complete installation guide
+- Colima configuration for optimal performance
+- USB passthrough for FPGA programming
+- X11 forwarding for GUI support
+- Troubleshooting and performance tips
+
+**Advantages**:
+- ✅ Works on Apple Silicon (via Rosetta 2)
+- ✅ Reuses existing Colima setup
+- ✅ Consistent environment across machines
+- ✅ No native macOS install mess
+- ✅ ~1.2x slower than native (acceptable)
+
+**Requirements**:
+- Colima with x86_64 architecture
+- 60GB disk space (Quartus ~15GB + projects)
+- 8-16GB RAM allocated to VM
+- XQuartz (for GUI support)
+
+### Docker Alternative: Unofficial Images
+
+```bash
+# Use community pre-built image (not recommended for production)
 docker pull raetro/quartus-lite:23.1
 
 # Run Quartus in container
@@ -121,6 +168,8 @@ docker run -it --rm \
   raetro/quartus-lite:23.1 \
   quartus_sh --version
 ```
+
+**Note**: Our official setup in `docker/quartus/` is preferred as it's maintained and tested.
 
 ## Project Structure
 
