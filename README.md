@@ -386,6 +386,40 @@ Once you have this basic example working, you can:
 - Add UART communication
 - Create more complex designs
 
+## Alternative FPGA Boards and Workflows
+
+This project uses the **Digilent CMOD A7** with the fully **open-source OpenXC7 toolchain** (Yosys + NextPNR + Project X-Ray). If you're interested in other FPGA platforms:
+
+### Intel/Altera Boards (Terasic DE10)
+
+**Cannot use the OpenXC7 workflow** - Intel FPGAs require different tools:
+
+📘 **See [DE10_QUARTUS_WORKFLOW.md](DE10_QUARTUS_WORKFLOW.md)** for a complete guide to using Intel Quartus Prime Lite with Terasic DE10 boards (DE10-Lite, DE10-Nano, DE10-Standard).
+
+**Key Differences**:
+- ❌ No fully open-source toolchain (yet - Project Mistral is experimental)
+- ✅ Free proprietary tools (Quartus Prime Lite)
+- ✅ More FPGA resources (50K-110K LEs vs 33K LEs)
+- ✅ ARM processor integration (DE10-Nano/Standard)
+- ⚠️ Larger tool installation (~10GB vs ~1GB)
+
+### Fully Open-Source Alternatives
+
+If you want to stay 100% open-source, consider these boards with mature toolchain support:
+
+| Board | FPGA | Toolchain | Price | Best For |
+|-------|------|-----------|-------|----------|
+| **iCEBreaker** | Lattice iCE40UP5K | IceStorm + Yosys + nextpnr | ~$60 | Learning, small projects |
+| **TinyFPGA BX** | Lattice iCE40LP8K | IceStorm | ~$40 | Tiny projects, USB-native |
+| **OrangeCrab** | Lattice ECP5 | Project Trellis | ~$100 | Feather form factor |
+| **ULX3S** | Lattice ECP5 (45K-85K LUTs) | Project Trellis | ~$130 | HDMI, ESP32 WiFi |
+| **ColorLight i5** | Lattice ECP5 | Project Trellis | ~$15 | Bargain, needs breakout |
+
+**Xilinx Open-Source Support**:
+- ✅ 7-Series (Artix-7, Spartan-7): OpenXC7 (this project)
+- ⚠️ UltraScale/UltraScale+: Experimental (nextpnr-fpga_interchange)
+- ❌ Zynq SoC: No open-source support
+
 ## References
 
 - [OpenXC7 Project](https://github.com/openXC7)
@@ -395,6 +429,9 @@ Once you have this basic example working, you can:
 - [CMOD A7 Reference Manual](https://digilent.com/reference/programmable-logic/cmod-a7/reference-manual)
 - [CMOD A7 Schematic](https://digilent.com/reference/programmable-logic/cmod-a7/start)
 - [meriac/openxc7-litex Container](https://github.com/meriac/openxc7-litex)
+- [Project IceStorm](https://github.com/YosysHQ/icestorm) - Lattice iCE40 open-source tools
+- [Project Trellis](https://github.com/YosysHQ/prjtrellis) - Lattice ECP5 open-source tools
+- [Project Mistral](https://github.com/Ravenslofty/mistral) - Intel Cyclone V experimental tools
 
 ## License
 
