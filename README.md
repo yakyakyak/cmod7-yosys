@@ -2,7 +2,8 @@
 
 This project demonstrates building an FPGA bitstream for the Digilent CMOD A7-35T board using the open-source OpenXC7 toolchain. The design is a simple LED blinky that blinks two LEDs at different rates.
 
-![CMOD A7-35T Board](images/cmod_a7_board.jpg)
+<img src="images/cmod_a7_board.jpg" alt="CMOD A7-35T Board" width="640"/>
+
 *Digilent CMOD A7-35T - Breadboardable Artix-7 FPGA Module (Image: [Digilent Inc.](https://digilent.com/shop/cmod-a7-35t-breadboardable-artix-7-fpga-module/))*
 
 ## Hardware Target
