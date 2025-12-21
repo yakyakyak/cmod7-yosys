@@ -1,0 +1,57 @@
+# Build outputs
+build/*
+!build/README.md
+*.bit
+*.bin
+*.json
+*.fasm
+*.frames
+*.bba
+*.vvp
+*.vcd
+
+# Simulation outputs
+*.vcd
+*.fst
+*.ghw
+
+# Backup files
+*~
+*.swp
+*.swo
+*.bak
+.DS_Store
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.code-workspace
+
+# Temporary files
+*.tmp
+*.log
+core
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+
+# Rust/Cargo (if using Surfer from source)
+target/
+Cargo.lock
+
+# OS specific
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Keep the chipdb and README in build directory
+# (chipdb is large but useful to cache)
+!build/README.md
