@@ -1,4 +1,4 @@
-## CMOD A7-35T Constraints for LED Blinky (NextPNR-Xilinx format)
+## CMOD A7-35T Constraints for LED Blinky with PWM (NextPNR-Xilinx format)
 ## Adapted from Digilent CMOD A7 Master XDC
 
 ## Clock signal (12 MHz)
@@ -11,3 +11,8 @@ set_property IOSTANDARD LVCMOS33 [get_ports {led[0]}]
 
 set_property PACKAGE_PIN C16 [get_ports {led[1]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {led[1]}]
+
+## GPIO - PWM Output
+## DIP pin 2, Bank 35
+set_property PACKAGE_PIN M3 [get_ports pio1]
+set_property IOSTANDARD LVCMOS33 [get_ports pio1]
