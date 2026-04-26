@@ -709,6 +709,336 @@ Don't use:
 
 For OpenXC7/Yosys, most synthesis is automatic. Avoid vendor-specific attributes unless necessary.
 
+## Parameterized Modules
+
+Parameterization makes modules reusable and configurable. Use parameters for widths, depths, and configuration options.
+
+### Basic Parameterization
+
+```verilog
+// Parameterized counter with configurable width
+module counter #(
+    parameter WIDTH = 8,              // Counter width in bits
+    parameter INIT  = 0               // Initial value
+) (
+    input  wire             clk,
+    input  wire             enable,
+    input  wire             reset,
+    output wire [WIDTH-1:0] count
+);
+
+    reg [WIDTH-1:0] counter_reg = INIT;
+
+    always @(posedge clk) begin
+        if (reset)
+            counter_reg <= INIT;
+        else if (enable)
+            counter_reg <= counter_reg + 1;
+    end
+
+    assign count = counter_reg;
+
+endmodule
+```
+
+### Instantiation with Parameters
+
+```verilog
+// Using default parameters
+counter default_counter (
+    .clk(clk),
+    .enable(1'b1),
+    .reset(1'b0),
+    .count(count_8bit)
+);
+
+// Overriding parameters (named style - recommended)
+counter #(
+    .WIDTH(16),
+    .INIT(16'h0000)
+) wide_counter (
+    .clk(clk),
+    .enable(1'b1),
+    .reset(rst),
+    .count(count_16bit)
+);
+
+// Overriding parameters (positional style - less clear)
+counter #(24, 0) counter_24bit (
+    .clk(clk),
+    .enable(1'b1),
+    .reset(rst),
+    .count(count_24bit)
+);
+```
+
+### Parameter Best Practices
+
+**1. Always provide defaults**:
+```verilog
+parameter WIDTH = 8;  // Default value allows direct instantiation
+```
+
+**2. Use localparam for derived values**:
+```verilog
+module memory #(
+    parameter DEPTH = 256,
+    parameter WIDTH = 8
+) (
+    input  wire [$clog2(DEPTH)-1:0] addr,  // Address width from depth
+    ...
+);
+    localparam ADDR_WIDTH = $clog2(DEPTH);  // Computed, not overridable
+```
+
+**3. Group related parameters**:
+```verilog
+module uart_tx #(
+    // Clock configuration
+    parameter CLK_FREQ   = 12_000_000,  // System clock frequency
+    parameter BAUD_RATE  = 115200,      // Target baud rate
+
+    // Data format
+    parameter DATA_BITS  = 8,           // 7 or 8
+    parameter STOP_BITS  = 1            // 1 or 2
+) (
+    ...
+);
+```
+
+**4. Document parameter constraints**:
+```verilog
+module fifo #(
+    parameter DEPTH = 16,   // Must be power of 2
+    parameter WIDTH = 8     // 1-64 bits supported
+) (
+    ...
+);
+```
+
+### Parameterized Width Patterns
+
+**Flexible bit widths**:
+```verilog
+module shifter #(
+    parameter WIDTH = 8
+) (
+    input  wire             clk,
+    input  wire             load,
+    input  wire [WIDTH-1:0] data_in,
+    output wire             serial_out
+);
+
+    reg [WIDTH-1:0] shift_reg = {WIDTH{1'b0}};
+
+    always @(posedge clk) begin
+        if (load)
+            shift_reg <= data_in;
+        else
+            shift_reg <= {shift_reg[WIDTH-2:0], 1'b0};
+    end
+
+    assign serial_out = shift_reg[WIDTH-1];
+
+endmodule
+```
+
+**Computed widths with $clog2**:
+```verilog
+module counter_with_max #(
+    parameter MAX_COUNT = 100
+) (
+    input  wire clk,
+    output reg  [$clog2(MAX_COUNT+1)-1:0] count = 0,
+    output wire done
+);
+
+    always @(posedge clk) begin
+        if (count == MAX_COUNT - 1)
+            count <= 0;
+        else
+            count <= count + 1;
+    end
+
+    assign done = (count == MAX_COUNT - 1);
+
+endmodule
+```
+
+### Generate Blocks for Structural Parameterization
+
+**Instantiate multiple copies**:
+```verilog
+module parallel_counters #(
+    parameter NUM_COUNTERS = 4,
+    parameter WIDTH = 8
+) (
+    input  wire clk,
+    input  wire [NUM_COUNTERS-1:0] enable,
+    output wire [NUM_COUNTERS*WIDTH-1:0] counts
+);
+
+    genvar i;
+    generate
+        for (i = 0; i < NUM_COUNTERS; i = i + 1) begin : counter_array
+            counter #(.WIDTH(WIDTH)) cnt (
+                .clk(clk),
+                .enable(enable[i]),
+                .reset(1'b0),
+                .count(counts[i*WIDTH +: WIDTH])
+            );
+        end
+    endgenerate
+
+endmodule
+```
+
+**Conditional generation**:
+```verilog
+module optional_register #(
+    parameter REGISTERED = 1,  // 1 = registered, 0 = combinatorial
+    parameter WIDTH = 8
+) (
+    input  wire             clk,
+    input  wire [WIDTH-1:0] data_in,
+    output wire [WIDTH-1:0] data_out
+);
+
+    generate
+        if (REGISTERED) begin : gen_registered
+            reg [WIDTH-1:0] data_reg = {WIDTH{1'b0}};
+
+            always @(posedge clk) begin
+                data_reg <= data_in;
+            end
+
+            assign data_out = data_reg;
+        end else begin : gen_combinatorial
+            assign data_out = data_in;
+        end
+    endgenerate
+
+endmodule
+```
+
+### Complete Parameterized Module Example
+
+A fully parameterized PWM generator:
+
+```verilog
+// Parameterized PWM Generator for CMOD A7-35T
+// Clock: 12 MHz default
+// Configurable resolution and frequency
+
+module pwm_generator #(
+    parameter CLK_FREQ    = 12_000_000,  // Clock frequency in Hz
+    parameter PWM_FREQ    = 1000,        // PWM frequency in Hz
+    parameter RESOLUTION  = 8            // Duty cycle resolution in bits
+) (
+    input  wire                    clk,
+    input  wire                    enable,
+    input  wire [RESOLUTION-1:0]   duty_cycle,  // 0 = 0%, MAX = 100%
+    output reg                     pwm_out = 1'b0
+);
+
+    // Calculate counter max for desired PWM frequency
+    // PWM_FREQ = CLK_FREQ / (COUNTER_MAX * 2^RESOLUTION)
+    localparam COUNTER_MAX = CLK_FREQ / (PWM_FREQ * (1 << RESOLUTION));
+    localparam COUNTER_WIDTH = $clog2(COUNTER_MAX + 1);
+
+    // Internal signals
+    reg [COUNTER_WIDTH-1:0] prescaler = 0;
+    reg [RESOLUTION-1:0] pwm_counter = 0;
+
+    // Prescaler for PWM frequency
+    always @(posedge clk) begin
+        if (!enable) begin
+            prescaler <= 0;
+        end else if (prescaler >= COUNTER_MAX - 1) begin
+            prescaler <= 0;
+        end else begin
+            prescaler <= prescaler + 1;
+        end
+    end
+
+    // PWM counter
+    always @(posedge clk) begin
+        if (!enable) begin
+            pwm_counter <= 0;
+        end else if (prescaler == 0) begin
+            pwm_counter <= pwm_counter + 1;
+        end
+    end
+
+    // PWM output comparison
+    always @(posedge clk) begin
+        if (!enable)
+            pwm_out <= 1'b0;
+        else
+            pwm_out <= (pwm_counter < duty_cycle);
+    end
+
+endmodule
+```
+
+**Usage examples**:
+```verilog
+// 1 kHz PWM with 8-bit resolution (default)
+pwm_generator pwm_led (
+    .clk(clk),
+    .enable(1'b1),
+    .duty_cycle(brightness),
+    .pwm_out(led_pwm)
+);
+
+// 20 kHz PWM for motor control (beyond audible range)
+pwm_generator #(
+    .CLK_FREQ(12_000_000),
+    .PWM_FREQ(20_000),
+    .RESOLUTION(10)
+) pwm_motor (
+    .clk(clk),
+    .enable(motor_enable),
+    .duty_cycle(motor_speed),
+    .pwm_out(motor_pwm)
+);
+
+// 50 Hz servo PWM
+pwm_generator #(
+    .PWM_FREQ(50),
+    .RESOLUTION(12)
+) pwm_servo (
+    .clk(clk),
+    .enable(1'b1),
+    .duty_cycle(servo_position),
+    .pwm_out(servo_pwm)
+);
+```
+
+### Parameter Validation (Simulation Only)
+
+```verilog
+module validated_module #(
+    parameter WIDTH = 8,
+    parameter DEPTH = 16
+) (
+    ...
+);
+
+    // Parameter validation (synthesis ignores initial blocks)
+    initial begin
+        if (WIDTH < 1 || WIDTH > 64) begin
+            $error("WIDTH must be between 1 and 64, got %0d", WIDTH);
+        end
+        if (DEPTH & (DEPTH - 1)) begin  // Check power of 2
+            $error("DEPTH must be power of 2, got %0d", DEPTH);
+        end
+    end
+
+    ...
+endmodule
+```
+
 ## Summary Checklist
 
 Use this quick checklist when writing Verilog code:

@@ -322,6 +322,90 @@ endmodule
 
 **Rule of Thumb**: Design with 2-5x margin over target clock frequency for robust operation.
 
+### Component Resource Estimates
+
+Use these estimates for planning before synthesis:
+
+| Component | LUTs | FFs | BRAMs | DSPs | Notes |
+|-----------|------|-----|-------|------|-------|
+| **Counters** | | | | | |
+| N-bit counter | ~N | N | 0 | 0 | Simple increment |
+| N-bit up/down counter | ~2N | N | 0 | 0 | With direction control |
+| **Registers & Shift** | | | | | |
+| N-bit register | 0 | N | 0 | 0 | Just flip-flops |
+| N-bit shift register | 0 | N | 0 | 0 | Serial shift |
+| FIFO (D entries × W bits) | ~2W | D×W | 0-1 | 0 | Depends on depth |
+| **State Machines** | | | | | |
+| FSM (M states) | ~2M | log2(M) | 0 | 0 | State encoding |
+| FSM with outputs | ~2M+O | log2(M) | 0 | 0 | O = output bits |
+| **Arithmetic** | | | | | |
+| N-bit adder | ~N | 0 | 0 | 0 | Carry chain |
+| N-bit comparator | ~N | 0 | 0 | 0 | Comparison logic |
+| N-bit multiplier (LUT) | ~N² | 0 | 0 | 0 | Uses LUTs only |
+| N-bit multiplier (DSP) | ~10 | ~20 | 0 | 1 | 18×25 max per DSP |
+| **Communication** | | | | | |
+| UART TX (8N1) | ~30-50 | ~20 | 0 | 0 | Shift register + FSM |
+| UART RX (8N1) | ~40-60 | ~25 | 0 | 0 | Oversampling + FSM |
+| SPI Master | ~40-60 | ~30 | 0 | 0 | Basic SPI |
+| I2C Master | ~80-120 | ~40 | 0 | 0 | With stretch support |
+| **PWM & Timing** | | | | | |
+| N-bit PWM | ~N | N | 0 | 0 | Counter + comparator |
+| Debouncer | ~20 | ~20 | 0 | 0 | Shift register method |
+| **Memory** | | | | | |
+| Distributed RAM (64×N) | 0 | 0 | 0 | 0 | Uses LUT RAM |
+| Block RAM (2K×9) | ~5 | ~5 | 1 | 0 | Control logic only |
+| Block RAM (4K×9) | ~5 | ~5 | 2 | 0 | Two BRAMs |
+
+**Notes on Estimates**:
+- These are approximate values; actual usage varies with optimization
+- Yosys may optimize small designs more aggressively
+- FFs include control registers and state
+- Check synthesis report for actual utilization
+
+### Estimating Your Design
+
+**Quick Formula** (rough estimate):
+```
+Total LUTs ≈ Σ(component LUTs) × 1.2   # 20% overhead
+Total FFs  ≈ Σ(component FFs) × 1.1    # 10% overhead
+```
+
+**Example Estimate** - UART with LED status:
+```
+UART TX:       50 LUTs,  20 FFs
+UART RX:       60 LUTs,  25 FFs
+Button debounce: 20 LUTs,  20 FFs
+LED blinky:    24 LUTs,  24 FFs
+Status FSM:    16 LUTs,   4 FFs
+─────────────────────────────────
+Subtotal:     170 LUTs,  93 FFs
+With 20%:     204 LUTs, 102 FFs  (~0.6% of XC7A35T)
+```
+
+### Resource Budget Template
+
+When planning a design, fill in this template:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Design: _______________                                 │
+│ Target: XC7A35T (33,280 LUTs, 41,600 FFs, 50 BRAMs)    │
+├─────────────────────────────────────────────────────────┤
+│ Component          │ LUTs │ FFs  │ BRAMs │ DSPs        │
+├────────────────────┼──────┼──────┼───────┼─────────────┤
+│                    │      │      │       │             │
+│                    │      │      │       │             │
+│                    │      │      │       │             │
+├────────────────────┼──────┼──────┼───────┼─────────────┤
+│ Subtotal           │      │      │       │             │
+│ Overhead (+20%)    │      │      │       │             │
+│ Total Estimated    │      │      │       │             │
+├────────────────────┼──────┼──────┼───────┼─────────────┤
+│ Available          │33280 │41600 │   50  │     90      │
+│ Utilization        │    % │    % │     % │      %      │
+└────────────────────┴──────┴──────┴───────┴─────────────┘
+```
+
 ## Power Considerations
 
 - **Power Supply**: Via USB (5V → 3.3V regulator on board)

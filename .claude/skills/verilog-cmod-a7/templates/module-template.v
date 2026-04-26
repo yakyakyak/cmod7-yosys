@@ -1,26 +1,27 @@
-// <Module Name> for CMOD A7-35T
-// <Brief description of functionality>
+// Example Module for CMOD A7-35T
+// A simple parameterized counter that demonstrates module structure
 // Clock: 12 MHz
-// <Other key specifications>
+//
+// USER: Rename module and customize for your design
 
-module <module_name> (
-    input  wire clk,              // 12 MHz system clock
-    input  wire [N-1:0] <inputs>, // Description
-    output wire [M-1:0] <outputs> // Description
+module example_module #(
+    parameter WIDTH = 8           // Counter width (customize as needed)
+) (
+    input  wire             clk,  // 12 MHz system clock
+    input  wire             en,   // Enable signal
+    output wire [WIDTH-1:0] out   // Output value
 );
 
-    // Parameters
-    parameter PARAM_NAME = <value>;  // Description
-
     // Internal signals
-    reg [WIDTH-1:0] signal_name = INIT_VALUE;
+    reg [WIDTH-1:0] counter = {WIDTH{1'b0}};
 
     // Sequential logic
     always @(posedge clk) begin
-        signal_name <= next_value;
+        if (en)
+            counter <= counter + 1;
     end
 
     // Combinatorial logic
-    assign outputs = signal_name[range];
+    assign out = counter;
 
 endmodule
