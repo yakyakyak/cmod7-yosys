@@ -16,3 +16,12 @@ set_property IOSTANDARD LVCMOS33 [get_ports {led[1]}]
 ## DIP pin 2, Bank 35
 set_property PACKAGE_PIN M3 [get_ports pio1]
 set_property IOSTANDARD LVCMOS33 [get_ports pio1]
+
+## UART - via FTDI FT2232HL Channel B
+## J17 = FPGA RX input (Digilent calls this uart_txd_in)
+## J18 = FPGA TX output (Digilent calls this uart_rxd_out)
+set_property PACKAGE_PIN J17 [get_ports uart_rxd_in]
+set_property IOSTANDARD LVCMOS33 [get_ports uart_rxd_in]
+
+set_property PACKAGE_PIN J18 [get_ports uart_txd_out]
+set_property IOSTANDARD LVCMOS33 [get_ports uart_txd_out]
