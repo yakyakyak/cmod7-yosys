@@ -38,11 +38,18 @@ case ${TESTBENCH} in
         VCD_FILE="${BUILD_DIR}/tb_top.vcd"
         echo "Running full testbench (~8M cycles, may take several minutes)"
         ;;
+    uart|u)
+        TB_FILE="${SIM_DIR}/tb_uart_reg.v"
+        TB_MODULE="tb_uart_reg"
+        VCD_FILE="${BUILD_DIR}/tb_uart_reg.vcd"
+        echo "Running UART register testbench"
+        ;;
     *)
         echo -e "${RED}Error: Unknown testbench '${TESTBENCH}'${NC}"
-        echo "Usage: $0 [quick|full]"
+        echo "Usage: $0 [quick|full|uart]"
         echo "  quick (default) - Fast simulation (~65K cycles)"
         echo "  full            - Complete simulation (~8M cycles)"
+        echo "  uart            - UART register interface test"
         exit 1
         ;;
 esac
@@ -65,6 +72,11 @@ echo -e "${YELLOW}[1/3]${NC} Compiling Verilog sources..."
 iverilog -o ${BUILD_DIR}/${TB_MODULE}.vvp \
          -g2012 \
          -I${SRC_DIR} \
+         -Ilibrary/uart \
+         library/uart/uart_rx.v \
+         library/uart/uart_tx.v \
+         ${SRC_DIR}/pwm_generator.v \
+         ${SRC_DIR}/reg_ctrl.v \
          ${SRC_DIR}/top.v \
          ${TB_FILE}
 

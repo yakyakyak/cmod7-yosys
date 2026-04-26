@@ -25,7 +25,7 @@ run_docker() {
 }
 
 echo "=== Step 1: Synthesis ==="
-run_docker "yosys -p 'read_verilog src/pwm_generator.v src/top.v; synth_xilinx -flatten -abc9 -arch xc7 -top top; write_json ${BUILD_DIR}/${PROJECT}.json'"
+run_docker "yosys -p 'read_verilog library/uart/uart_rx.v library/uart/uart_tx.v src/pwm_generator.v src/reg_ctrl.v src/top.v; synth_xilinx -flatten -abc9 -arch xc7 -top top; write_json ${BUILD_DIR}/${PROJECT}.json'"
 
 echo "=== Step 2: Generate chipdb (if needed) ==="
 run_docker "

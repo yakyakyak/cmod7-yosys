@@ -7,7 +7,7 @@ TOP_MODULE = top
 PART = xc7a35tcpg236-1
 
 # Source files
-VERILOG_SRC = src/top.v
+VERILOG_SRC = library/uart/uart_rx.v library/uart/uart_tx.v src/pwm_generator.v src/reg_ctrl.v src/top.v
 XDC_FILE = constraints/cmod_a7.xdc
 
 # Build directory
@@ -49,10 +49,15 @@ BITSTREAM = $(BUILD_DIR)/$(PROJECT).bit
 SIM_DIR = sim
 TB_QUICK = $(SIM_DIR)/tb_top_quick.v
 TB_FULL = $(SIM_DIR)/tb_top.v
+TB_UART = $(SIM_DIR)/tb_uart_reg.v
 VCD_QUICK = $(BUILD_DIR)/tb_top_quick.vcd
 VCD_FULL = $(BUILD_DIR)/tb_top.vcd
+VCD_UART = $(BUILD_DIR)/tb_uart_reg.vcd
 VVP_QUICK = $(BUILD_DIR)/tb_top_quick.vvp
 VVP_FULL = $(BUILD_DIR)/tb_top.vvp
+VVP_UART = $(BUILD_DIR)/tb_uart_reg.vvp
+
+SIM_INCLUDES = -I src -I library/uart
 
 # Default target
 all: $(BITSTREAM)
@@ -103,19 +108,28 @@ sim-quick: $(VCD_QUICK)
 
 sim-full: $(VCD_FULL)
 
+sim-uart: $(VCD_UART)
+
 $(VVP_QUICK): $(VERILOG_SRC) $(TB_QUICK) | $(BUILD_DIR)
-	iverilog -o $@ -g2012 -I$(dir $(VERILOG_SRC)) $(VERILOG_SRC) $(TB_QUICK)
+	iverilog -o $@ -g2012 $(SIM_INCLUDES) $(VERILOG_SRC) $(TB_QUICK)
 
 $(VCD_QUICK): $(VVP_QUICK)
 	vvp $<
 	@echo "Simulation complete. Waveform saved to $(VCD_QUICK)"
 
 $(VVP_FULL): $(VERILOG_SRC) $(TB_FULL) | $(BUILD_DIR)
-	iverilog -o $@ -g2012 -I$(dir $(VERILOG_SRC)) $(VERILOG_SRC) $(TB_FULL)
+	iverilog -o $@ -g2012 $(SIM_INCLUDES) $(VERILOG_SRC) $(TB_FULL)
 
 $(VCD_FULL): $(VVP_FULL)
 	vvp $<
 	@echo "Simulation complete. Waveform saved to $(VCD_FULL)"
+
+$(VVP_UART): $(VERILOG_SRC) $(TB_UART) | $(BUILD_DIR)
+	iverilog -o $@ -g2012 $(SIM_INCLUDES) $(VERILOG_SRC) $(TB_UART)
+
+$(VCD_UART): $(VVP_UART)
+	vvp $<
+	@echo "Simulation complete. Waveform saved to $(VCD_UART)"
 
 wave-quick: $(VCD_QUICK)
 	@if command -v surfer >/dev/null 2>&1; then \
@@ -135,8 +149,17 @@ wave-full: $(VCD_FULL)
 		exit 1; \
 	fi
 
+wave-uart: $(VCD_UART)
+	@if command -v surfer >/dev/null 2>&1; then \
+		surfer $(VCD_UART) & \
+	else \
+		echo "Error: surfer not found. Install with: cargo install surfer"; \
+		echo "Or download from: https://github.com/surfer-project/surfer"; \
+		exit 1; \
+	fi
+
 clean-sim:
-	rm -f $(VCD_QUICK) $(VCD_FULL) $(VVP_QUICK) $(VVP_FULL)
+	rm -f $(VCD_QUICK) $(VCD_FULL) $(VCD_UART) $(VVP_QUICK) $(VVP_FULL) $(VVP_UART)
 
 # Docker-specific targets
 docker-build:
@@ -197,5 +220,5 @@ help:
 	@echo "  - CHIPDB and PRJXRAY_DB_DIR environment variables must be set"
 
 .PHONY: all synth pnr bitstream program program-flash clean help \
-        sim sim-quick sim-full wave-quick wave-full clean-sim \
+        sim sim-quick sim-full sim-uart wave-quick wave-full wave-uart clean-sim \
         docker-build docker-shell docker-clean
