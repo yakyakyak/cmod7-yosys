@@ -3,7 +3,6 @@ build/*
 !build/README.md
 *.bit
 *.bin
-*.json
 *.fasm
 *.frames
 *.bba

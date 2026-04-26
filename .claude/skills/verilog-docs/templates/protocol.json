@@ -1,0 +1,11 @@
+{ "signal": [
+  { "name": "Host -> Device",
+    "wave": "x2.2.2.x......",
+    "data": ["CMD", "ADDR", "DATA"] },
+  { "name": "Device -> Host",
+    "wave": "x......x2.2.2.",
+    "data": ["ACK", "ADDR", "DATA"] }
+],
+  "head": { "text": "Command/Response Protocol" },
+  "foot": { "text": "Each box = 1 byte" }
+}

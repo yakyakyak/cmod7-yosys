@@ -1,0 +1,18 @@
+{ "signal": [
+  { "name": "clk",
+    "wave": "P............." },
+  { "name": "ready_o",
+    "wave": "1.0..........1" },
+  { "name": "valid_i",
+    "wave": "0.10.........." },
+  { "name": "data_i",
+    "wave": "x.2..........x",
+    "data": ["BYTE"] },
+  {},
+  { "name": "tx",
+    "wave": "1..02222222221",
+    "data": ["Start", "D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "Stop"] }
+],
+  "head": { "text": "Ready/Valid Handshake" },
+  "foot": { "text": "ready_o returns high after transaction completes" }
+}

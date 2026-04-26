@@ -1,0 +1,17 @@
+{ "signal": [
+  { "name": "clk",
+    "wave": "P.........." },
+  { "name": "input",
+    "wave": "0..1.0..1.." },
+  {},
+  { "name": "state",
+    "wave": "2..3..4..2..",
+    "data": ["IDLE", "ACTIVE", "DONE", "IDLE"] },
+  { "name": "busy",
+    "wave": "0..1.....0." },
+  { "name": "done",
+    "wave": "0.......10." }
+],
+  "head": { "text": "State Machine Transitions" },
+  "foot": { "text": "done pulses for 1 clock at end of sequence" }
+}

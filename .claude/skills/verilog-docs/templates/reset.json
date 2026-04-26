@@ -1,0 +1,18 @@
+{ "signal": [
+  { "name": "clk",
+    "wave": "P.........." },
+  { "name": "rst",
+    "wave": "1..0......." },
+  {},
+  { "name": "state",
+    "wave": "x..2...3...",
+    "data": ["IDLE", "RUN"] },
+  { "name": "counter",
+    "wave": "x..2.......=",
+    "data": ["0x00", "incrementing..."] },
+  { "name": "output",
+    "wave": "x..0...1..." }
+],
+  "head": { "text": "Reset and Initialization" },
+  "foot": { "text": "Synchronous active-high reset" }
+}
