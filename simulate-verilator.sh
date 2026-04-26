@@ -1,5 +1,5 @@
 #!/bin/bash
-# Simulation script for LED Blinky using Icarus Verilog
+# Simulation script for LED Blinky using Verilator
 
 set -e
 
@@ -11,6 +11,7 @@ SIM_DIR="sim"
 SRC_DIR="src"
 PLATFORM_DIR="platforms/cmod_a7"
 BUILD_DIR="build"
+OBJ_DIR="obj_dir"
 
 # Create build directory if it doesn't exist
 mkdir -p ${BUILD_DIR}
@@ -22,7 +23,7 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo "==================================================="
-echo "LED Blinky Simulation"
+echo "LED Blinky Simulation (Verilator)"
 echo "==================================================="
 
 # Select testbench
@@ -57,14 +58,28 @@ case ${TESTBENCH} in
         VCD_FILE="${BUILD_DIR}/tb_top_pwm.vcd"
         echo "Running PWM full testbench (~8M cycles, may take several minutes)"
         ;;
+    lint)
+        echo "Running lint-only check on RTL sources..."
+        echo ""
+        verilator --lint-only -sv -Wall \
+            +incdir+${SRC_DIR} +incdir+${PLATFORM_DIR} +incdir+library/uart \
+            library/uart/uart_rx.v \
+            library/uart/uart_tx.v \
+            ${SRC_DIR}/pwm_generator.v \
+            ${SRC_DIR}/reg_ctrl.v \
+            ${PLATFORM_DIR}/top.v
+        echo -e "${GREEN}✓${NC} Lint passed"
+        exit 0
+        ;;
     *)
         echo -e "${RED}Error: Unknown testbench '${TESTBENCH}'${NC}"
-        echo "Usage: $0 [quick|full|uart|pwm-quick|pwm]"
+        echo "Usage: $0 [quick|full|uart|pwm-quick|pwm|lint]"
         echo "  quick (default) - Fast simulation (~65K cycles)"
         echo "  full            - Complete simulation (~8M cycles)"
         echo "  uart            - UART register interface test"
         echo "  pwm-quick       - PWM fast simulation (~65K cycles)"
         echo "  pwm             - PWM complete simulation (~8M cycles)"
+        echo "  lint            - Lint-only check (no simulation)"
         exit 1
         ;;
 esac
@@ -73,40 +88,35 @@ echo "Testbench: ${TB_FILE}"
 echo "==================================================="
 echo ""
 
-# Check if iverilog is installed
-if ! command -v iverilog &> /dev/null; then
-    echo -e "${RED}Error: iverilog not found${NC}"
-    echo "Please install Icarus Verilog:"
-    echo "  macOS: brew install icarus-verilog"
-    echo "  Ubuntu/Debian: sudo apt-get install iverilog"
+# Check if verilator is installed
+if ! command -v verilator &> /dev/null; then
+    echo -e "${RED}Error: verilator not found${NC}"
+    echo "Install: sudo apt-get install verilator"
     exit 1
 fi
 
-# Step 1: Compile
-echo -e "${YELLOW}[1/3]${NC} Compiling Verilog sources..."
-iverilog -o ${BUILD_DIR}/${TB_MODULE}.vvp \
-         -g2012 \
-         -I${SRC_DIR} \
-         -I${PLATFORM_DIR} \
-         -Ilibrary/uart \
-         library/uart/uart_rx.v \
-         library/uart/uart_tx.v \
-         ${SRC_DIR}/pwm_generator.v \
-         ${SRC_DIR}/reg_ctrl.v \
-         ${PLATFORM_DIR}/top.v \
-         ${TB_FILE}
+# Step 1: Compile to C++ and build binary
+echo -e "${YELLOW}[1/2]${NC} Compiling and building simulation binary (verilator)..."
+verilator --binary -sv -Wall \
+    +incdir+${SRC_DIR} +incdir+${PLATFORM_DIR} +incdir+library/uart \
+    library/uart/uart_rx.v \
+    library/uart/uart_tx.v \
+    ${SRC_DIR}/pwm_generator.v \
+    ${SRC_DIR}/reg_ctrl.v \
+    ${PLATFORM_DIR}/top.v \
+    ${TB_FILE} 2>&1
 
 if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓${NC} Compilation successful"
+    echo -e "${GREEN}✓${NC} Build successful: ${OBJ_DIR}/V${TB_MODULE}"
 else
-    echo -e "${RED}✗${NC} Compilation failed"
+    echo -e "${RED}✗${NC} Build failed"
     exit 1
 fi
 echo ""
 
 # Step 2: Run simulation
-echo -e "${YELLOW}[2/3]${NC} Running simulation..."
-vvp ${BUILD_DIR}/${TB_MODULE}.vvp
+echo -e "${YELLOW}[2/2]${NC} Running simulation..."
+${OBJ_DIR}/V${TB_MODULE}
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓${NC} Simulation completed"
@@ -116,9 +126,6 @@ else
 fi
 echo ""
 
-# Step 3: View waveform (optional)
-echo -e "${YELLOW}[3/3]${NC} Waveform generation complete"
-echo ""
 echo "VCD file created: ${VCD_FILE}"
 echo ""
 
@@ -135,7 +142,6 @@ if command -v surfer &> /dev/null; then
 else
     echo "To view waveforms, install Surfer:"
     echo "  macOS/Linux: cargo install surfer"
-    echo "  Or download from: https://github.com/surfer-project/surfer"
     echo ""
     echo "Then run: surfer ${VCD_FILE}"
 fi

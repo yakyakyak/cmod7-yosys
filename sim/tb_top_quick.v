@@ -14,12 +14,19 @@ module tb_top_quick;
     // Testbench signals
     reg clk;
     wire [1:0] led;
+    /* verilator lint_off UNUSEDSIGNAL */
+    wire        pio1;
+    wire        uart_txd_out;
+    /* verilator lint_on UNUSEDSIGNAL */
     reg [31:0] cycle_count = 0;
 
     // Instantiate the design under test
     top dut (
-        .clk(clk),
-        .led(led)
+        .clk          (clk),
+        .led          (led),
+        .pio1         (pio1),
+        .uart_rxd_in  (1'b1),
+        .uart_txd_out (uart_txd_out)
     );
 
     // Clock generation
@@ -29,9 +36,11 @@ module tb_top_quick;
     end
 
     // Cycle counter
+    /* verilator lint_off BLKSEQ */
     always @(posedge clk) begin
         cycle_count = cycle_count + 1;
     end
+    /* verilator lint_on BLKSEQ */
 
     // Main test sequence
     initial begin
@@ -65,7 +74,7 @@ module tb_top_quick;
         $display("LED[1] state: %b", led[1]);
 
         // Verify counter incremented
-        if (dut.counter == cycle_count) begin
+        if (dut.counter == cycle_count[23:0]) begin
             $display("PASS: Counter incremented correctly");
         end else begin
             $display("FAIL: Counter mismatch! Expected %0d, got %0d",

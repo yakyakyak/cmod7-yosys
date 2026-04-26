@@ -1,7 +1,16 @@
 #!/bin/bash
-# Simulation script for LED Blinky using Icarus Verilog
+# Simulation script for LED Blinky using Vivado xsim
 
 set -e
+
+VIVADO_SETTINGS="${HOME}/vivado/2025.2.1/Vivado/settings64.sh"
+
+# Source Vivado environment
+if [ ! -f "${VIVADO_SETTINGS}" ]; then
+    echo "Error: Vivado settings not found at ${VIVADO_SETTINGS}"
+    exit 1
+fi
+source "${VIVADO_SETTINGS}"
 
 # Default testbench
 TESTBENCH="${1:-quick}"
@@ -22,7 +31,7 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo "==================================================="
-echo "LED Blinky Simulation"
+echo "LED Blinky Simulation (Vivado xsim)"
 echo "==================================================="
 
 # Select testbench
@@ -73,28 +82,18 @@ echo "Testbench: ${TB_FILE}"
 echo "==================================================="
 echo ""
 
-# Check if iverilog is installed
-if ! command -v iverilog &> /dev/null; then
-    echo -e "${RED}Error: iverilog not found${NC}"
-    echo "Please install Icarus Verilog:"
-    echo "  macOS: brew install icarus-verilog"
-    echo "  Ubuntu/Debian: sudo apt-get install iverilog"
-    exit 1
-fi
-
 # Step 1: Compile
-echo -e "${YELLOW}[1/3]${NC} Compiling Verilog sources..."
-iverilog -o ${BUILD_DIR}/${TB_MODULE}.vvp \
-         -g2012 \
-         -I${SRC_DIR} \
-         -I${PLATFORM_DIR} \
-         -Ilibrary/uart \
-         library/uart/uart_rx.v \
-         library/uart/uart_tx.v \
-         ${SRC_DIR}/pwm_generator.v \
-         ${SRC_DIR}/reg_ctrl.v \
-         ${PLATFORM_DIR}/top.v \
-         ${TB_FILE}
+echo -e "${YELLOW}[1/3]${NC} Compiling Verilog sources (xvlog)..."
+xvlog -sv \
+      -i ${SRC_DIR} \
+      -i ${PLATFORM_DIR} \
+      -i library/uart \
+      library/uart/uart_rx.v \
+      library/uart/uart_tx.v \
+      ${SRC_DIR}/pwm_generator.v \
+      ${SRC_DIR}/reg_ctrl.v \
+      ${PLATFORM_DIR}/top.v \
+      ${TB_FILE} 2>&1
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓${NC} Compilation successful"
@@ -104,9 +103,21 @@ else
 fi
 echo ""
 
-# Step 2: Run simulation
-echo -e "${YELLOW}[2/3]${NC} Running simulation..."
-vvp ${BUILD_DIR}/${TB_MODULE}.vvp
+# Step 2: Elaborate
+echo -e "${YELLOW}[2/3]${NC} Elaborating design (xelab)..."
+xelab -debug typical -timescale 1ns/1ps ${TB_MODULE} -s ${TB_MODULE} 2>&1
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✓${NC} Elaboration successful"
+else
+    echo -e "${RED}✗${NC} Elaboration failed"
+    exit 1
+fi
+echo ""
+
+# Step 3: Simulate
+echo -e "${YELLOW}[3/3]${NC} Running simulation (xsim)..."
+xsim ${TB_MODULE} --runall 2>&1
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓${NC} Simulation completed"
@@ -116,9 +127,6 @@ else
 fi
 echo ""
 
-# Step 3: View waveform (optional)
-echo -e "${YELLOW}[3/3]${NC} Waveform generation complete"
-echo ""
 echo "VCD file created: ${VCD_FILE}"
 echo ""
 
@@ -135,7 +143,6 @@ if command -v surfer &> /dev/null; then
 else
     echo "To view waveforms, install Surfer:"
     echo "  macOS/Linux: cargo install surfer"
-    echo "  Or download from: https://github.com/surfer-project/surfer"
     echo ""
     echo "Then run: surfer ${VCD_FILE}"
 fi

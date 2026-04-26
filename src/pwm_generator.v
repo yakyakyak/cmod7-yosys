@@ -3,6 +3,8 @@
 // Clock: 12 MHz
 // PWM frequency = 12 MHz / 2^COUNTER_WIDTH
 
+`timescale 1ns / 1ps
+
 module pwm_generator #(
     parameter COUNTER_WIDTH = 8  // 8-bit = 256 steps, ~46.9 kHz PWM frequency
 )(

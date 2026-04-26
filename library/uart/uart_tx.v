@@ -1,6 +1,8 @@
 // UART Transmitter
 // 8N1 format, parameterized clock frequency and baud rate
 
+`timescale 1ns / 1ps
+
 module uart_tx #(
     parameter CLK_FREQ  = 12_000_000,
     parameter BAUD_RATE = 115_200
@@ -15,6 +17,9 @@ module uart_tx #(
 
     localparam CLKS_PER_BIT = CLK_FREQ / BAUD_RATE;
     localparam BIT_CNT_W    = $clog2(CLKS_PER_BIT);
+    /* verilator lint_off WIDTHTRUNC */
+    localparam [BIT_CNT_W-1:0] CNT_MAX = CLKS_PER_BIT - 1;
+    /* verilator lint_on WIDTHTRUNC */
 
     localparam [1:0] S_IDLE  = 2'd0,
                      S_START = 2'd1,
@@ -48,7 +53,7 @@ module uart_tx #(
 
                 S_START: begin
                     tx <= 1'b0;
-                    if (clk_cnt == CLKS_PER_BIT - 1) begin
+                    if (clk_cnt == CNT_MAX) begin
                         clk_cnt <= 0;
                         bit_idx <= 0;
                         state   <= S_DATA;
@@ -59,7 +64,7 @@ module uart_tx #(
 
                 S_DATA: begin
                     tx <= shift[0];
-                    if (clk_cnt == CLKS_PER_BIT - 1) begin
+                    if (clk_cnt == CNT_MAX) begin
                         clk_cnt <= 0;
                         shift   <= {1'b0, shift[7:1]};
                         if (bit_idx == 7)
@@ -73,7 +78,7 @@ module uart_tx #(
 
                 S_STOP: begin
                     tx <= 1'b1;
-                    if (clk_cnt == CLKS_PER_BIT - 1) begin
+                    if (clk_cnt == CNT_MAX) begin
                         state   <= S_IDLE;
                         clk_cnt <= 0;
                     end else begin

@@ -6,9 +6,12 @@ PROJECT = blinky
 TOP_MODULE = top
 PART = xc7a35tcpg236-1
 
+# Platform
+PLATFORM_DIR = platforms/cmod_a7
+
 # Source files
-VERILOG_SRC = library/uart/uart_rx.v library/uart/uart_tx.v src/pwm_generator.v src/reg_ctrl.v src/top.v
-XDC_FILE = constraints/cmod_a7.xdc
+VERILOG_SRC = library/uart/uart_rx.v library/uart/uart_tx.v src/pwm_generator.v src/reg_ctrl.v $(PLATFORM_DIR)/top.v
+XDC_FILE = $(PLATFORM_DIR)/cmod_a7.xdc
 
 # Build directory
 BUILD_DIR = build
@@ -57,7 +60,16 @@ VVP_QUICK = $(BUILD_DIR)/tb_top_quick.vvp
 VVP_FULL = $(BUILD_DIR)/tb_top.vvp
 VVP_UART = $(BUILD_DIR)/tb_uart_reg.vvp
 
-SIM_INCLUDES = -I src -I library/uart
+TB_PWM_QUICK  = $(SIM_DIR)/tb_top_pwm_quick.v
+TB_PWM        = $(SIM_DIR)/tb_top_pwm.v
+VCD_PWM_QUICK = $(BUILD_DIR)/tb_top_pwm_quick.vcd
+VCD_PWM       = $(BUILD_DIR)/tb_top_pwm.vcd
+VVP_PWM_QUICK = $(BUILD_DIR)/tb_top_pwm_quick.vvp
+VVP_PWM       = $(BUILD_DIR)/tb_top_pwm.vvp
+
+VIVADO_SETTINGS = $(HOME)/vivado/2025.2.1/Vivado/settings64.sh
+
+SIM_INCLUDES = -I src -I $(PLATFORM_DIR) -I library/uart
 
 # Default target
 all: $(BITSTREAM)
@@ -110,6 +122,10 @@ sim-full: $(VCD_FULL)
 
 sim-uart: $(VCD_UART)
 
+sim-pwm-quick: $(VCD_PWM_QUICK)
+
+sim-pwm: $(VCD_PWM)
+
 $(VVP_QUICK): $(VERILOG_SRC) $(TB_QUICK) | $(BUILD_DIR)
 	iverilog -o $@ -g2012 $(SIM_INCLUDES) $(VERILOG_SRC) $(TB_QUICK)
 
@@ -130,6 +146,68 @@ $(VVP_UART): $(VERILOG_SRC) $(TB_UART) | $(BUILD_DIR)
 $(VCD_UART): $(VVP_UART)
 	vvp $<
 	@echo "Simulation complete. Waveform saved to $(VCD_UART)"
+
+$(VVP_PWM_QUICK): $(VERILOG_SRC) $(TB_PWM_QUICK) | $(BUILD_DIR)
+	iverilog -o $@ -g2012 $(SIM_INCLUDES) $(VERILOG_SRC) $(TB_PWM_QUICK)
+
+$(VCD_PWM_QUICK): $(VVP_PWM_QUICK)
+	vvp $<
+	@echo "Simulation complete. Waveform saved to $(VCD_PWM_QUICK)"
+
+$(VVP_PWM): $(VERILOG_SRC) $(TB_PWM) | $(BUILD_DIR)
+	iverilog -o $@ -g2012 $(SIM_INCLUDES) $(VERILOG_SRC) $(TB_PWM)
+
+$(VCD_PWM): $(VVP_PWM)
+	vvp $<
+	@echo "Simulation complete. Waveform saved to $(VCD_PWM)"
+
+# Verilator simulation targets
+sim-verilator: sim-verilator-quick
+
+sim-verilator-quick:
+	./simulate-verilator.sh quick
+
+sim-verilator-full:
+	./simulate-verilator.sh full
+
+sim-verilator-uart:
+	./simulate-verilator.sh uart
+
+sim-verilator-pwm-quick:
+	./simulate-verilator.sh pwm-quick
+
+sim-verilator-pwm:
+	./simulate-verilator.sh pwm
+
+lint:
+	./simulate-verilator.sh lint
+
+# Vivado xsim simulation targets
+sim-vivado: sim-vivado-quick
+
+sim-vivado-quick:
+	./simulate-vivado.sh quick
+
+sim-vivado-full:
+	./simulate-vivado.sh full
+
+sim-vivado-uart:
+	./simulate-vivado.sh uart
+
+sim-vivado-pwm-quick:
+	./simulate-vivado.sh pwm-quick
+
+sim-vivado-pwm:
+	./simulate-vivado.sh pwm
+
+# Vivado bitstream build targets
+VIVADO_BUILD_DIR = build/vivado
+
+build-vivado:
+	./build-vivado.sh
+
+clean-vivado:
+	rm -rf $(VIVADO_BUILD_DIR)
 
 wave-quick: $(VCD_QUICK)
 	@if command -v surfer >/dev/null 2>&1; then \
@@ -158,8 +236,28 @@ wave-uart: $(VCD_UART)
 		exit 1; \
 	fi
 
+wave-pwm-quick: $(VCD_PWM_QUICK)
+	@if command -v surfer >/dev/null 2>&1; then \
+		surfer $(VCD_PWM_QUICK) & \
+	else \
+		echo "Error: surfer not found. Install with: cargo install surfer"; \
+		echo "Or download from: https://github.com/surfer-project/surfer"; \
+		exit 1; \
+	fi
+
+wave-pwm: $(VCD_PWM)
+	@if command -v surfer >/dev/null 2>&1; then \
+		surfer $(VCD_PWM) & \
+	else \
+		echo "Error: surfer not found. Install with: cargo install surfer"; \
+		echo "Or download from: https://github.com/surfer-project/surfer"; \
+		exit 1; \
+	fi
+
 clean-sim:
-	rm -f $(VCD_QUICK) $(VCD_FULL) $(VCD_UART) $(VVP_QUICK) $(VVP_FULL) $(VVP_UART)
+	rm -f $(VCD_QUICK) $(VCD_FULL) $(VCD_UART) $(VCD_PWM_QUICK) $(VCD_PWM) \
+	      $(VVP_QUICK) $(VVP_FULL) $(VVP_UART) $(VVP_PWM_QUICK) $(VVP_PWM)
+	rm -rf xsim.dir xvlog.pb xelab.pb *.jou obj_dir
 
 # Docker-specific targets
 docker-build:
@@ -184,13 +282,40 @@ help:
 	@echo "  program-flash  - Program FPGA (Flash - persistent)"
 	@echo "  clean          - Remove build artifacts"
 	@echo ""
-	@echo "Simulation Targets:"
+	@echo "Simulation Targets (Icarus Verilog):"
 	@echo "  sim            - Run quick simulation (default, ~65K cycles)"
 	@echo "  sim-quick      - Run quick simulation (~65K cycles, <1s)"
 	@echo "  sim-full       - Run full simulation (~8M cycles, minutes)"
+	@echo "  sim-uart       - Run UART register interface test"
+	@echo "  sim-pwm-quick  - Run PWM quick simulation (~65K cycles)"
+	@echo "  sim-pwm        - Run PWM full simulation (~8M cycles)"
 	@echo "  wave-quick     - View quick simulation waveforms in Surfer"
 	@echo "  wave-full      - View full simulation waveforms in Surfer"
+	@echo "  wave-uart      - View UART simulation waveforms in Surfer"
+	@echo "  wave-pwm-quick - View PWM quick waveforms in Surfer"
+	@echo "  wave-pwm       - View PWM full waveforms in Surfer"
 	@echo "  clean-sim      - Remove simulation outputs"
+	@echo ""
+	@echo "Simulation Targets (Verilator):"
+	@echo "  sim-verilator           - Run quick simulation (default)"
+	@echo "  sim-verilator-quick     - Run quick simulation (~65K cycles)"
+	@echo "  sim-verilator-full      - Run full simulation (~8M cycles)"
+	@echo "  sim-verilator-uart      - Run UART register interface test"
+	@echo "  sim-verilator-pwm-quick - Run PWM quick simulation"
+	@echo "  sim-verilator-pwm       - Run PWM full simulation"
+	@echo "  lint                    - Lint RTL sources with Verilator -Wall"
+	@echo ""
+	@echo "Simulation Targets (Vivado xsim):"
+	@echo "  sim-vivado           - Run quick simulation (default)"
+	@echo "  sim-vivado-quick     - Run quick simulation (~65K cycles)"
+	@echo "  sim-vivado-full      - Run full simulation (~8M cycles)"
+	@echo "  sim-vivado-uart      - Run UART register interface test"
+	@echo "  sim-vivado-pwm-quick - Run PWM quick simulation"
+	@echo "  sim-vivado-pwm       - Run PWM full simulation"
+	@echo ""
+	@echo "Vivado Build Targets:"
+	@echo "  build-vivado   - Build bitstream with Vivado (synth + impl + bitstream)"
+	@echo "  clean-vivado   - Remove Vivado build artifacts (build/vivado/)"
 	@echo ""
 	@echo "Docker Targets:"
 	@echo "  docker-build   - Build Docker image with OpenXC7 toolchain"
@@ -220,5 +345,11 @@ help:
 	@echo "  - CHIPDB and PRJXRAY_DB_DIR environment variables must be set"
 
 .PHONY: all synth pnr bitstream program program-flash clean help \
-        sim sim-quick sim-full sim-uart wave-quick wave-full wave-uart clean-sim \
+        sim sim-quick sim-full sim-uart sim-pwm-quick sim-pwm \
+        wave-quick wave-full wave-uart wave-pwm-quick wave-pwm clean-sim \
+        sim-verilator sim-verilator-quick sim-verilator-full sim-verilator-uart \
+        sim-verilator-pwm-quick sim-verilator-pwm lint \
+        sim-vivado sim-vivado-quick sim-vivado-full sim-vivado-uart \
+        sim-vivado-pwm-quick sim-vivado-pwm \
+        build-vivado clean-vivado \
         docker-build docker-shell docker-clean

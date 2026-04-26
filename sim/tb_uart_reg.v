@@ -13,12 +13,14 @@ module tb_uart_reg;
     // DUT signals
     reg        clk             = 0;
     wire [1:0] led;
+    /* verilator lint_off UNUSEDSIGNAL */
     wire       pio1;
+    /* verilator lint_on UNUSEDSIGNAL */
     reg        uart_rxd_in_reg = 1;       // idle high
+    wire       uart_rxd_in;
     wire       uart_txd_out;
 
     assign uart_rxd_in = uart_rxd_in_reg;
-    wire uart_rxd_in;
 
     top dut (
         .clk          (clk),
@@ -28,7 +30,9 @@ module tb_uart_reg;
         .uart_txd_out (uart_txd_out)
     );
 
+    /* verilator lint_off BLKSEQ */
     always #(CLK_PERIOD/2) clk = ~clk;
+    /* verilator lint_on BLKSEQ */
 
     // Track pass/fail
     integer pass_count = 0;

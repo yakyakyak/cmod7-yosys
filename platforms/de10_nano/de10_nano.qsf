@@ -1,0 +1,47 @@
+# Quartus Settings File — DE10-Nano (Cyclone V 5CSEBA6U23I7)
+set_global_assignment -name FAMILY "Cyclone V"
+set_global_assignment -name DEVICE 5CSEBA6U23I7
+set_global_assignment -name TOP_LEVEL_ENTITY top
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+
+# Source files (relative to this .qsf)
+set_global_assignment -name VERILOG_FILE ../../platforms/de10_nano/top.v
+set_global_assignment -name VERILOG_FILE ../../src/pwm_generator.v
+set_global_assignment -name VERILOG_FILE ../../src/reg_ctrl.v
+set_global_assignment -name VERILOG_FILE ../../library/uart/uart_rx.v
+set_global_assignment -name VERILOG_FILE ../../library/uart/uart_tx.v
+
+# Clock — 50 MHz
+set_location_assignment PIN_V11 -to clk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk
+set_global_assignment -name SDC_FILE de10_nano.sdc
+
+# LEDs
+set_location_assignment PIN_W15  -to led[0]
+set_location_assignment PIN_AA24 -to led[1]
+set_location_assignment PIN_V16  -to led[2]
+set_location_assignment PIN_V15  -to led[3]
+set_location_assignment PIN_AF26 -to led[4]
+set_location_assignment PIN_AE26 -to led[5]
+set_location_assignment PIN_Y16  -to led[6]
+set_location_assignment PIN_AA23 -to led[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led[7]
+
+# UART — GPIO_0 header (external USB-UART adapter required)
+set_location_assignment PIN_V12 -to uart_rxd_in
+set_location_assignment PIN_E8  -to uart_txd_out
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_rxd_in
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_txd_out
+
+# PWM — GPIO_0[2]
+set_location_assignment PIN_W12 -to pwm_out
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pwm_out
+
+set_global_assignment -name LAST_QUARTUS_VERSION "25.1std.0 Lite Edition"

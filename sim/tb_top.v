@@ -11,14 +11,21 @@ module tb_top;
     // Testbench signals
     reg clk;
     wire [1:0] led;
+    /* verilator lint_off UNUSEDSIGNAL */
+    wire        pio1;
+    wire        uart_txd_out;
+    /* verilator lint_on UNUSEDSIGNAL */
 
     // Counter to track simulation progress
     reg [31:0] cycle_count = 0;
 
     // Instantiate the design under test
     top dut (
-        .clk(clk),
-        .led(led)
+        .clk          (clk),
+        .led          (led),
+        .pio1         (pio1),
+        .uart_rxd_in  (1'b1),
+        .uart_txd_out (uart_txd_out)
     );
 
     // Clock generation
@@ -28,6 +35,7 @@ module tb_top;
     end
 
     // Monitor LED changes
+    /* verilator lint_off BLKSEQ */
     always @(posedge clk) begin
         cycle_count = cycle_count + 1;
 
@@ -37,6 +45,7 @@ module tb_top;
                      $time, cycle_count, led);
         end
     end
+    /* verilator lint_on BLKSEQ */
 
     // Main test sequence
     initial begin
@@ -93,6 +102,7 @@ module tb_top;
     end
 
     // Optional: Print counter value periodically for debugging
+    /* verilator lint_off BLKSEQ */
     always @(posedge clk) begin
         // Print every 2^20 cycles (~87ms of real time)
         if ((cycle_count & 32'h000FFFFF) == 0 && cycle_count > 0) begin
@@ -100,5 +110,6 @@ module tb_top;
                      cycle_count, dut.counter, led);
         end
     end
+    /* verilator lint_on BLKSEQ */
 
 endmodule

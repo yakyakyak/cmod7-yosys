@@ -11,7 +11,10 @@ module tb_top_pwm;
     // Testbench signals
     reg clk;
     wire [1:0] led;
-    wire pio1;
+    wire        pio1;
+    /* verilator lint_off UNUSEDSIGNAL */
+    wire        uart_txd_out;
+    /* verilator lint_on UNUSEDSIGNAL */
 
     // Counter to track simulation progress
     reg [31:0] cycle_count = 0;
@@ -21,9 +24,11 @@ module tb_top_pwm;
 
     // Instantiate the design under test
     top dut (
-        .clk(clk),
-        .led(led),
-        .pio1(pio1)
+        .clk          (clk),
+        .led          (led),
+        .pio1         (pio1),
+        .uart_rxd_in  (1'b1),
+        .uart_txd_out (uart_txd_out)
     );
 
     // Clock generation
@@ -33,6 +38,7 @@ module tb_top_pwm;
     end
 
     // Monitor LED and PWM changes
+    /* verilator lint_off BLKSEQ */
     always @(posedge clk) begin
         cycle_count = cycle_count + 1;
 
@@ -49,6 +55,7 @@ module tb_top_pwm;
             last_pwm_duty = dut.pwm_duty;
         end
     end
+    /* verilator lint_on BLKSEQ */
 
     // Main test sequence
     initial begin
@@ -105,6 +112,7 @@ module tb_top_pwm;
     end
 
     // Optional: Print counter value periodically for debugging
+    /* verilator lint_off BLKSEQ */
     always @(posedge clk) begin
         // Print every 2^20 cycles (~87ms of real time)
         if ((cycle_count & 32'h000FFFFF) == 0 && cycle_count > 0) begin
@@ -112,5 +120,6 @@ module tb_top_pwm;
                      cycle_count, dut.counter, (dut.pwm_duty * 100) / 256, led);
         end
     end
+    /* verilator lint_on BLKSEQ */
 
 endmodule

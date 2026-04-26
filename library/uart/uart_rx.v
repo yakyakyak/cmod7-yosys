@@ -2,6 +2,8 @@
 // 8N1 format, parameterized clock frequency and baud rate
 // Samples each bit at the center using a per-bit clock divider
 
+`timescale 1ns / 1ps
+
 module uart_rx #(
     parameter CLK_FREQ  = 12_000_000,
     parameter BAUD_RATE = 115_200
@@ -16,6 +18,10 @@ module uart_rx #(
     localparam CLKS_PER_BIT = CLK_FREQ / BAUD_RATE;
     localparam HALF_BIT     = CLKS_PER_BIT / 2;
     localparam BIT_CNT_W    = $clog2(CLKS_PER_BIT);
+    /* verilator lint_off WIDTHTRUNC */
+    localparam [BIT_CNT_W-1:0] CNT_MAX  = CLKS_PER_BIT - 1;
+    localparam [BIT_CNT_W-1:0] HALF_MAX = HALF_BIT - 1;
+    /* verilator lint_on WIDTHTRUNC */
 
     localparam [1:0] S_IDLE  = 2'd0,
                      S_START = 2'd1,
@@ -57,7 +63,7 @@ module uart_rx #(
                 end
 
                 S_START: begin
-                    if (clk_cnt == HALF_BIT - 1) begin
+                    if (clk_cnt == HALF_MAX) begin
                         // At center of start bit
                         if (rx_s == 1'b0) begin
                             clk_cnt <= 0;
@@ -72,7 +78,7 @@ module uart_rx #(
                 end
 
                 S_DATA: begin
-                    if (clk_cnt == CLKS_PER_BIT - 1) begin
+                    if (clk_cnt == CNT_MAX) begin
                         // At center of data bit
                         clk_cnt <= 0;
                         shift   <= {rx_s, shift[7:1]};
@@ -86,7 +92,7 @@ module uart_rx #(
                 end
 
                 S_STOP: begin
-                    if (clk_cnt == CLKS_PER_BIT - 1) begin
+                    if (clk_cnt == CNT_MAX) begin
                         if (rx_s == 1'b1) begin
                             data_o  <= shift;
                             valid_o <= 1'b1;

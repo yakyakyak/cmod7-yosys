@@ -14,7 +14,10 @@ module tb_top_pwm_quick;
     // Testbench signals
     reg clk;
     wire [1:0] led;
-    wire pio1;
+    wire        pio1;
+    /* verilator lint_off UNUSEDSIGNAL */
+    wire        uart_txd_out;
+    /* verilator lint_on UNUSEDSIGNAL */
     reg [31:0] cycle_count = 0;
 
     // PWM duty cycle measurement
@@ -24,9 +27,11 @@ module tb_top_pwm_quick;
 
     // Instantiate the design under test
     top dut (
-        .clk(clk),
-        .led(led),
-        .pio1(pio1)
+        .clk          (clk),
+        .led          (led),
+        .pio1         (pio1),
+        .uart_rxd_in  (1'b1),
+        .uart_txd_out (uart_txd_out)
     );
 
     // Clock generation
@@ -36,11 +41,14 @@ module tb_top_pwm_quick;
     end
 
     // Cycle counter
+    /* verilator lint_off BLKSEQ */
     always @(posedge clk) begin
         cycle_count = cycle_count + 1;
     end
+    /* verilator lint_on BLKSEQ */
 
     // Measure PWM duty cycle
+    /* verilator lint_off BLKSEQ */
     always @(posedge clk) begin
         pwm_sample_counter = pwm_sample_counter + 1;
 
@@ -59,6 +67,7 @@ module tb_top_pwm_quick;
             pwm_sample_counter = 0;
         end
     end
+    /* verilator lint_on BLKSEQ */
 
     // Main test sequence
     initial begin
@@ -90,7 +99,7 @@ module tb_top_pwm_quick;
                  dut.pwm_duty, (dut.pwm_duty * 100) / 256);
 
         // Verify counter incremented
-        if (dut.counter == cycle_count) begin
+        if (dut.counter == cycle_count[23:0]) begin
             $display("PASS: Counter incremented correctly");
         end else begin
             $display("FAIL: Counter mismatch! Expected %0d, got %0d",

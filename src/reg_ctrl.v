@@ -5,6 +5,8 @@
 //   Read:  TX 'R' ADDR      → RX 'A' ADDR DATA  (or 'N' ADDR on bad addr)
 //   Write: TX 'W' ADDR DATA → RX 'A' ADDR DATA  (or 'N' ADDR on bad addr)
 
+`timescale 1ns / 1ps
+
 module reg_ctrl (
     input  wire        clk,
     input  wire        rst,
@@ -174,6 +176,8 @@ module reg_ctrl (
                         end
                     end
                 end
+
+                default: state <= S_IDLE;
 
             endcase
         end
