@@ -1,424 +1,157 @@
-# CMOD A7-35T LED Blinky Example
+# FPGA Blinky — CMOD A7 / DE10-Nano
 
-This project demonstrates building an FPGA bitstream for the Digilent CMOD A7-35T board using the open-source OpenXC7 toolchain. The design is a simple LED blinky that blinks two LEDs at different rates.
+Counter-driven LED blinker with PWM output and UART register interface, targeting two FPGA boards with a shared RTL library.
 
 <img src="images/cmod_a7_board.jpg" alt="CMOD A7-35T Board" width="640"/>
 
-*Digilent CMOD A7-35T - Breadboardable Artix-7 FPGA Module (Image: [Digilent Inc.](https://digilent.com/shop/cmod-a7-35t-breadboardable-artix-7-fpga-module/))*
+*Digilent CMOD A7-35T (Image: [Digilent Inc.](https://digilent.com/shop/cmod-a7-35t-breadboardable-artix-7-fpga-module/))*
 
-## Hardware Target
+## Supported Platforms
 
-- **Board**: Digilent CMOD A7-35T
-- **FPGA**: Xilinx Artix-7 xc7a35tcpg236-1
-- **Clock**: 12 MHz on-board oscillator
+| Platform | FPGA | Toolchain | Doc |
+|----------|------|-----------|-----|
+| Digilent CMOD A7-35T | Xilinx Artix-7 xc7a35tcpg236-1 | **Vivado** (preferred) or OpenXC7 (open-source) | [platforms/cmod_a7/](platforms/cmod_a7/README.md) |
+| Terasic DE10-Nano | Intel Cyclone V 5CSEBA6U23I7 | Quartus Prime Lite | [platforms/de10_nano/](platforms/de10_nano/README.md) |
 
-## Design Description
+## Design
 
-The design (`src/top.v`) implements a simple counter-based LED blinker:
+Each platform's `top.v` instantiates the same shared modules:
 
-- **Input**: 12 MHz system clock
-- **Outputs**: 2 LEDs
-  - LED[0]: Blinks at ~0.71 Hz (uses counter bit 23)
-  - LED[1]: Blinks at ~1.43 Hz (uses counter bit 22)
-- **Logic**: 24-bit counter incremented on each clock cycle
+- **`library/uart/uart_rx.v`** / **`uart_tx.v`** — 8N1 UART, parameterized (CLK_FREQ/BAUD_RATE)
+- **`src/reg_ctrl.v`** — 4-state FSM (IDLE → ADDR → WDATA → RESP); implements Ping/Read/Write over a byte protocol
+- **`src/pwm_generator.v`** — duty-cycle comparator; auto-breathes or follows UART-written register
 
-The design uses only 35 FPGA cells and achieves a maximum frequency of 285.55 MHz (23.8x margin over the 12 MHz requirement).
+A free-running counter drives LEDs and PWM in auto mode; UART commands switch to manual control.
 
-## Prerequisites
+### UART Register Protocol
 
-### Docker/Colima
-This project uses Docker to run the OpenXC7 toolchain. On macOS with Apple Silicon:
+8N1, 115200 baud. All platforms use the same protocol:
+
+| Command | Send | Receive |
+|---------|------|---------|
+| Ping | `'P'` | `'P'` |
+| Read | `'R' ADDR` | `'A' ADDR DATA` or `'N' ADDR` |
+| Write | `'W' ADDR DATA` | `'A' ADDR DATA` or `'N' ADDR` |
+
+### Register Map
+
+| Addr | Name | R/W | Description |
+|------|------|-----|-------------|
+| 0x00 | LED_CTRL | R/W | bit[1:0] = LED[1:0] (manual mode) |
+| 0x01 | LED_MODE | R/W | 0 = auto blink, 1 = manual |
+| 0x02 | PWM_DUTY | R/W | manual PWM duty 0–255 |
+| 0x03 | PWM_MODE | R/W | 0 = auto breathing, 1 = manual |
+| 0x04 | CNT_HI | RO | counter[23:16] |
+| 0x05 | CNT_MID | RO | counter[15:8] |
+| 0x06 | CNT_LO | RO | counter[7:0] |
+| 0x07 | VERSION | RO | board ID (0xA7 = CMOD A7) |
+
+See [library/uart/docs/register-interface.md](library/uart/docs/register-interface.md) for the full protocol reference, Python examples, and Verilog integration guide.
+
+### Host Tool
 
 ```bash
-# Install Colima (if not already installed)
-brew install colima
+python tools/reg_access.py /dev/tty.usbserial-XXXXB ping
+python tools/reg_access.py /dev/tty.usbserial-XXXXB write 0x01 1   # manual LED mode
+python tools/reg_access.py /dev/tty.usbserial-XXXXB read 0x07      # read VERSION
+```
 
-# Start Colima with Rosetta 2 for better performance
+Requires `pyserial`.
+
+## Quick Start
+
+### CMOD A7 (Vivado)
+
+```bash
+./build-vivado.sh
+openFPGALoader -b cmoda7_35t build/vivado/blinky.bit
+```
+
+### CMOD A7 (OpenXC7, open-source)
+
+```bash
 colima start --arch x86_64 --vm-type=vz --vz-rosetta
-
-# Alternative: Basic x86_64 emulation (slower)
-# colima start --arch x86_64
-```
-
-**Note**: Rosetta 2 provides significantly better performance than QEMU emulation on Apple Silicon.
-
-### Container Image
-The build uses the prebuilt OpenXC7 container:
-- `ghcr.io/meriac/openxc7-litex:latest`
-
-## Project Structure
-
-```
-cmod7/
-├── src/
-│   └── top.v                    # Verilog source code
-├── constraints/
-│   └── cmod_a7.xdc              # Pin constraints and I/O standards
-├── sim/                          # Simulation files
-│   ├── tb_top.v                 # Full testbench (8M cycles)
-│   └── tb_top_quick.v           # Quick testbench (65K cycles)
-├── build/                        # Build outputs (generated)
-│   ├── blinky.json              # Synthesized netlist (9.1 MB)
-│   ├── blinky.fasm              # FPGA assembly (23 KB)
-│   ├── blinky.frames            # Frame data (5.3 MB)
-│   ├── blinky.bit               # Final bitstream (2.1 MB)
-│   ├── xc7a35tcpg236-1.bin      # Device chipdb (88 MB, cached)
-│   ├── tb_top_quick.vcd         # Quick simulation waveform
-│   └── tb_top.vcd               # Full simulation waveform
-├── docker-build.sh              # Main build script
-├── simulate.sh                  # Simulation script
-└── README.md                    # This file
-```
-
-## Build Process
-
-### Quick Start
-
-```bash
-# Make build script executable (first time only)
-chmod +x docker-build.sh
-
-# Run complete build
 ./docker-build.sh
+openFPGALoader -b cmoda7_35t build/blinky.bit
 ```
 
-The script will produce `build/blinky.bit` which can be programmed to the FPGA.
+### DE10-Nano (Quartus)
 
-### Build Steps Explained
-
-The build process consists of 5 steps:
-
-#### Step 1: Synthesis (Yosys)
-Converts Verilog RTL to a netlist of FPGA primitives:
 ```bash
-yosys -p 'read_verilog src/top.v; \
-          synth_xilinx -flatten -abc9 -arch xc7 -top top; \
-          write_json build/blinky.json'
+cd platforms/de10_nano && ./build.sh
+openFPGALoader -b de10nano output_files/de10_nano.sof
 ```
-- **Input**: `src/top.v`
-- **Output**: `build/blinky.json` (9.1 MB)
-- **Result**: 35 cells (24 FDRE flip-flops, 6 CARRY4, 1 BUFG, etc.)
-
-#### Step 2: Generate Chipdb (bbaexport + bbasm)
-Creates a binary device database for the FPGA part (run once, then cached):
-```bash
-python3 bbaexport.py --device xc7a35tcpg236-1 --bba xc7a35tcpg236-1.bba
-bbasm -l xc7a35tcpg236-1.bba xc7a35tcpg236-1.bin
-```
-- **Output**: `build/xc7a35tcpg236-1.bin` (88 MB)
-- **Note**: This step takes a few minutes but only runs once
-
-#### Step 3: Place and Route (NextPNR)
-Places and routes the design using the device chipdb:
-```bash
-nextpnr-xilinx --json build/blinky.json \
-               --xdc constraints/cmod_a7.xdc \
-               --chipdb build/xc7a35tcpg236-1.bin \
-               --fasm build/blinky.fasm
-```
-- **Inputs**: `build/blinky.json`, `constraints/cmod_a7.xdc`, `build/xc7a35tcpg236-1.bin`
-- **Output**: `build/blinky.fasm` (23 KB)
-- **Timing**: Max freq 285.55 MHz (PASS at 12.00 MHz target)
-
-#### Step 4: Convert FASM to Frames (fasm2frames)
-Converts FPGA assembly to frame data:
-```bash
-python3 fasm2frames --part xc7a35tcpg236-1 \
-                    --db-root prjxray-db/artix7 \
-                    build/blinky.fasm \
-                    /tmp/blinky.frames
-```
-- **Input**: `build/blinky.fasm`
-- **Output**: `build/blinky.frames` (5.3 MB)
-- **Note**: Uses docker cp workaround for permission issues
-
-#### Step 5: Generate Bitstream (xc7frames2bit)
-Creates the final bitstream file:
-```bash
-xc7frames2bit --part_file prjxray-db/artix7/xc7a35tcpg236-1/part.yaml \
-              --part_name xc7a35tcpg236-1 \
-              --frm_file build/blinky.frames \
-              --output_file build/blinky.bit
-```
-- **Input**: `build/blinky.frames`
-- **Output**: `build/blinky.bit` (2.1 MB) - **Ready to program!**
 
 ## Simulation
 
-Before building the bitstream, you can simulate the design using Icarus Verilog to verify functionality.
+Three simulators are supported — all accept `quick` (default), `full`, and `uart` testbench modes:
 
-### Prerequisites
-
-Install Icarus Verilog and Surfer waveform viewer:
+| Script | Simulator | Best for |
+|--------|-----------|----------|
+| `./simulate-vivado.sh [mode]` | Vivado xsim | Matches synthesis semantics |
+| `./simulate.sh [mode]` | Icarus Verilog | Lightweight, fast |
+| `./simulate-verilator.sh [mode]` | Verilator | High-speed long runs |
 
 ```bash
-# Install Icarus Verilog
-# macOS
-brew install icarus-verilog
+./simulate.sh                # quick testbench, <1s
+./simulate.sh uart           # UART register integration test
+./simulate-vivado.sh uart    # same test via xsim
 
-# Ubuntu/Debian
-sudo apt-get install iverilog
+make sim-quick               # Icarus quick
+make wave-uart               # View UART waveform in Surfer
+```
 
-# Install Surfer (waveform viewer)
+### Installing Simulation Prerequisites
+
+```bash
+# Icarus Verilog
+brew install icarus-verilog          # macOS
+sudo apt-get install iverilog        # Ubuntu/Debian
+
+# Surfer waveform viewer
 cargo install surfer
-
-# Or download prebuilt binaries from:
-# https://github.com/surfer-project/surfer/releases
 ```
 
-### Running Simulation
+Vivado xsim is bundled with Vivado. Verilator: `brew install verilator`.
 
-The project includes two testbenches:
+## Repository Structure
 
-#### Quick Simulation (~65K cycles, <1 second)
-```bash
-# Make script executable (first time only)
-chmod +x simulate.sh
-
-# Run quick simulation
-./simulate.sh quick
-# or simply
-./simulate.sh
 ```
-
-This runs a fast functional verification that:
-- Verifies the counter increments correctly
-- Checks LED assignments to counter bits
-- Completes in under 1 second
-- Generates `build/tb_top_quick.vcd` waveform file
-
-#### Full Simulation (~8M cycles, several minutes)
-```bash
-./simulate.sh full
+platforms/
+  cmod_a7/        # Artix-7: top.v, cmod_a7.xdc, build.sh, README.md, PINOUT.md
+  de10_nano/      # Cyclone V: top.v, de10_nano.qsf/qpf/sdc, build.sh, README.md
+src/
+  reg_ctrl.v      # UART register controller FSM
+  pwm_generator.v # PWM duty-cycle comparator
+library/
+  uart/           # Shared uart_rx.v / uart_tx.v + docs/
+sim/              # Shared testbenches (tb_top*.v, tb_uart_reg.v)
+tools/
+  reg_access.py   # Python CLI for UART register access
+docker/
+  quartus/        # Docker + Colima setup for Quartus on macOS
+build-vivado.sh   # Vivado synthesis + implementation (CMOD A7)
+docker-build.sh   # OpenXC7 Docker build (CMOD A7)
+simulate.sh       # Icarus Verilog runner
+simulate-vivado.sh
+simulate-verilator.sh
 ```
-
-This runs a complete simulation that:
-- Simulates enough cycles to see LED toggles
-- Takes several minutes to complete
-- Generates `build/tb_top.vcd` waveform file
-
-### Viewing Waveforms
-
-After simulation, view the waveforms with Surfer:
-
-```bash
-# Quick simulation waveforms
-surfer build/tb_top_quick.vcd
-
-# Full simulation waveforms
-surfer build/tb_top.vcd
-
-# Or using make targets
-make wave-quick
-make wave-full
-```
-
-Surfer is a modern, fast waveform viewer with features like:
-- Instant loading of large VCD files
-- Smooth zooming and panning
-- Search and filter capabilities
-- Dark/light theme support
-- Cross-platform (macOS, Linux, Windows)
-
-### Simulation Output
-
-Example output from quick simulation:
-```
-=================================================
-LED Blinky Quick Testbench
-=================================================
-Clock: 12 MHz (period = 83.33 ns)
-Simulation will run for 65536 cycles
-=================================================
-
-Simulation Results:
--------------------------------------------------
-Cycles simulated: 65538
-Final counter value: 0x010002 (65538)
-LED[0] state: 0
-LED[1] state: 0
-PASS: Counter incremented correctly
-PASS: LED[0] correctly assigned to counter[23]
-PASS: LED[1] correctly assigned to counter[22]
-=================================================
-```
-
-## Programming the FPGA
-
-### Option 1: Using OpenOCD (Open-Source)
-
-```bash
-# Install OpenOCD
-brew install openocd
-
-# Program the bitstream
-openocd -f board/digilent_arty.cfg -c "init; pld load 0 build/blinky.bit; exit"
-```
-
-### Option 2: Using openFPGALoader
-
-```bash
-# Install openFPGALoader
-brew install openfpgaloader
-
-# Program to SRAM (temporary)
-openFPGALoader -b cmoda7_35t build/blinky.bit
-
-# Program to Flash (persistent)
-openFPGALoader -b cmoda7_35t -f build/blinky.bit
-```
-
-### Option 3: Using Digilent Tools
-
-1. Install [Digilent Adept](https://digilent.com/reference/software/adept/start)
-2. Connect the CMOD A7 board via USB
-3. Use Adept to program `build/blinky.bit`
-
-### Option 4: Using Vivado Hardware Manager
-
-1. Open Vivado Hardware Manager
-2. Connect to the board
-3. Program device with `build/blinky.bit`
-
-## Pin Assignments
-
-| Signal | Pin  | Location       | I/O Standard |
-|--------|------|----------------|--------------|
-| clk    | L17  | 12 MHz Clock   | LVCMOS33     |
-| led[0] | A17  | LED0 (Green)   | LVCMOS33     |
-| led[1] | C16  | LED1 (Green)   | LVCMOS33     |
-
-See `constraints/cmod_a7.xdc` for complete pin definitions.
-
-## Expected Behavior
-
-After programming, you should see:
-- **LED[0]**: Blinking slowly at approximately 0.71 Hz
-- **LED[1]**: Blinking faster at approximately 1.43 Hz (twice the rate of LED[0])
 
 ## Troubleshooting
 
-### Build fails with "permission denied" errors
-Make sure the build directory is writable:
+**Vivado not found**: Edit `build-vivado.sh` — set `VIVADO_SETTINGS` to match your install path.
+
+**Colima not running** (OpenXC7 flow):
+```bash
+colima start --arch x86_64 --vm-type=vz --vz-rosetta
+```
+
+**Build permission errors** (OpenXC7 flow):
 ```bash
 chmod 777 build/
 ```
 
-### Docker/Colima not running
-Start Colima with Rosetta 2 (recommended for Apple Silicon):
-```bash
-colima start --arch x86_64 --vm-type=vz --vz-rosetta
-```
-
-### Chipdb generation is slow
-This is normal - chipdb generation takes 2-3 minutes and creates an 88 MB file. The file is cached in `build/` so subsequent builds skip this step.
-
-### "command not found" errors in container
-The docker-build.sh script sets up the correct PATH. If running commands manually, ensure:
-```bash
-PATH="/home/builder/.local/bin:/usr/local/bin:/usr/bin:/bin"
-```
-
-## Build Times (Apple M3 Max via x86_64 emulation)
-
-- Step 1 (Synthesis): ~30 seconds
-- Step 2 (Chipdb): ~2-3 minutes (first time only, then cached)
-- Step 3 (Place & Route): ~5 seconds
-- Step 4 (FASM to Frames): ~1 second
-- Step 5 (Bitstream): <1 second
-
-**Total**: ~40 seconds (with chipdb cached)
-
-## Resource Utilization
-
-```
-SLICE_LUTX:    49/65200     0%
-SLICE_FFX:     24/65200     0%
-CARRY4:         6/ 8150     0%
-BUFGCTRL:       1/   32     3%
-PAD:            3/  730     0%
-```
-
-This minimal design uses less than 1% of the FPGA's resources.
-
-## Build Script Details
-
-The `docker-build.sh` script automates the entire build process using the OpenXC7 container. Key features:
-
-- **Automatic caching**: Chipdb is generated once and reused
-- **Permission handling**: Uses docker cp workaround for fasm2frames
-- **Path configuration**: Sets up correct paths for all tools
-- **Error handling**: Exits on first error with `set -e`
-
-### Customizing the Build
-
-To modify the design for a different part or project:
-
-1. **Change the FPGA part**:
-   ```bash
-   PART="xc7a35tcpg236-1"  # Update to your target device
-   ```
-
-2. **Change project name**:
-   ```bash
-   PROJECT="blinky"  # Update to your project name
-   ```
-
-3. **Update source files**: Modify `src/top.v` and `constraints/cmod_a7.xdc`
-
-## Tools and Versions
-
-This project uses the following open-source tools (via the meriac/openxc7-litex container):
-
-- **Yosys**: RTL synthesis (0.40+33)
-- **NextPNR**: Place and route (nextpnr-xilinx)
-- **Project X-Ray (prjxray)**: Bitstream database and tools
-- **bbaexport/bbasm**: Device database generation
-- **fasm2frames**: FASM to frame conversion
-- **xc7frames2bit**: Bitstream generation
-
-## Next Steps
-
-Once you have this basic example working, you can:
-- Add button inputs to control the LEDs
-- Experiment with the RGB LED
-- Implement PWM for LED brightness control
-- Add UART communication
-- Create more complex designs
-
-## Alternative FPGA Boards and Workflows
-
-This project uses the **Digilent CMOD A7** with the fully **open-source OpenXC7 toolchain** (Yosys + NextPNR + Project X-Ray). If you're interested in other FPGA platforms:
-
-### Intel/Altera Boards (Terasic DE10)
-
-**Cannot use the OpenXC7 workflow** - Intel FPGAs require different tools:
-
-📘 **See [DE10_QUARTUS_WORKFLOW.md](DE10_QUARTUS_WORKFLOW.md)** for a complete guide to using Intel Quartus Prime Lite with Terasic DE10 boards (DE10-Lite, DE10-Nano, DE10-Standard).
-
-**Key Differences**:
-- ❌ No fully open-source toolchain (yet - Project Mistral is experimental)
-- ✅ Free proprietary tools (Quartus Prime Lite)
-- ✅ More FPGA resources (50K-110K LEs vs 33K LEs)
-- ✅ ARM processor integration (DE10-Nano/Standard)
-- ⚠️ Larger tool installation (~10GB vs ~1GB)
-
-### Fully Open-Source Alternatives
-
-If you want to stay 100% open-source, consider these boards with mature toolchain support:
-
-| Board | FPGA | Toolchain | Price | Best For |
-|-------|------|-----------|-------|----------|
-| **iCEBreaker** | Lattice iCE40UP5K | IceStorm + Yosys + nextpnr | ~$60 | Learning, small projects |
-| **TinyFPGA BX** | Lattice iCE40LP8K | IceStorm | ~$40 | Tiny projects, USB-native |
-| **OrangeCrab** | Lattice ECP5 | Project Trellis | ~$100 | Feather form factor |
-| **ULX3S** | Lattice ECP5 (45K-85K LUTs) | Project Trellis | ~$130 | HDMI, ESP32 WiFi |
-| **ColorLight i5** | Lattice ECP5 | Project Trellis | ~$15 | Bargain, needs breakout |
-
-**Xilinx Open-Source Support**:
-- ✅ 7-Series (Artix-7, Spartan-7): OpenXC7 (this project)
-- ⚠️ UltraScale/UltraScale+: Experimental (nextpnr-fpga_interchange)
-- ❌ Zynq SoC: No open-source support
+**Chipdb generation is slow**: Normal — it takes 2–3 minutes and produces an 88 MB file. The file is cached in `build/` and subsequent builds skip this step.
 
 ## References
 
@@ -426,20 +159,12 @@ If you want to stay 100% open-source, consider these boards with mature toolchai
 - [Project X-Ray](https://github.com/f4pga/prjxray)
 - [Yosys](https://github.com/YosysHQ/yosys)
 - [NextPNR](https://github.com/YosysHQ/nextpnr)
-- [CMOD A7 Reference Manual](https://digilent.com/reference/programmable-logic/cmod-a7/reference-manual)
-- [CMOD A7 Schematic](https://digilent.com/reference/programmable-logic/cmod-a7/start)
 - [meriac/openxc7-litex Container](https://github.com/meriac/openxc7-litex)
-- [Project IceStorm](https://github.com/YosysHQ/icestorm) - Lattice iCE40 open-source tools
-- [Project Trellis](https://github.com/YosysHQ/prjtrellis) - Lattice ECP5 open-source tools
-- [Project Mistral](https://github.com/Ravenslofty/mistral) - Intel Cyclone V experimental tools
+- [CMOD A7 Reference Manual](https://digilent.com/reference/programmable-logic/cmod-a7/reference-manual)
+- [DE10-Nano User Manual](https://ftp.intel.com/Public/Pub/fpgaup/pub/Intel_Material/Boards/DE10-Nano/DE10_Nano_User_Manual.pdf)
+- [Quartus Prime Lite Download](https://www.intel.com/content/www/us/en/software-kit/825278/)
+- [openFPGALoader](https://github.com/trabucayre/openFPGALoader)
 
 ## License
 
-This example project is provided as-is for educational purposes.
-
-## Acknowledgments
-
-- OpenXC7 team for the open-source Xilinx 7-series toolchain
-- meriac for the prebuilt openxc7-litex container
-- Digilent for the CMOD A7 board and documentation
-- Project X-Ray contributors for reverse-engineering the bitstream format
+This project is provided as-is for educational purposes.
