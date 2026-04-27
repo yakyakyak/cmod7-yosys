@@ -346,6 +346,32 @@ template is a one-line comment; regio renders and discards the output.
 | `cnt_lo_ro` | 8 | in | RO register input (counter[7:0]) |
 | `version_ro` | 8 | in | RO register input (tied to 0xA7) |
 
+### Bus timing
+
+![Register bus read and write timing](img/reg-store-bus.svg)
+
+<!-- wavedrom source (regenerate: npx wavedrom-cli -i /tmp/reg-store-bus.json -s regs/docs/img/reg-store-bus.svg)
+```json
+{ "signal": [
+    { "name": "clk",        "wave": "P.....|......" },
+    {},
+    { "name": "addr",       "wave": "x2...x|x2..x.", "data": ["ADDR_R", "ADDR_W"] },
+    { "name": "wen",        "wave": "0.....|010..." },
+    { "name": "wdata",      "wave": "x.....|x2..x.", "data": ["WDATA"] },
+    {},
+    { "name": "addr_valid", "wave": "01...0|01..0." },
+    { "name": "rdata",      "wave": "x2...x|......", "data": ["RDATA"] },
+    {},
+    { "name": "reg_out",    "wave": "2.....|..2...", "data": ["prev", "WDATA"] }
+  ],
+  "head": { "text": "cmod7_reg_store — Read (left) and Write (right)", "tick": 0 },
+  "config": { "hscale": 2 }
+}
+```
+-->
+
+Left half shows a read: `addr` is presented for one cycle, `addr_valid` and `rdata` respond combinationally. Right half shows a write: `wen` is asserted for one cycle, `reg_out` updates on the next posedge.
+
 ### Address validity
 
 ```verilog
@@ -459,6 +485,32 @@ cmod7_reg_store u_reg_store (
 `version_ro` is tied directly to the constant `0xA7`. Counter fields are sliced
 from the 24-bit free-running counter passed into `reg_ctrl` from the platform
 top.
+
+### UART write sequence
+
+![UART Write command sequence](img/uart-write-sequence.svg)
+
+<!-- wavedrom source (regenerate: npx wavedrom-cli -i /tmp/uart-write-sequence.json -s regs/docs/img/uart-write-sequence.svg)
+```json
+{ "signal": [
+    { "name": "uart_rxd_in",  "wave": "112..3..4..1.........", "data": ["'W'", "ADDR", "DATA"] },
+    { "name": "rx_valid",     "wave": "0...10.10.10........." },
+    { "name": "rx_data",      "wave": "x...2..3..4..........", "data": ["'W'", "ADDR", "DATA"] },
+    {},
+    { "name": "state",        "wave": "2....3..4..5.........", "data": ["S_IDLE", "S_ADDR", "S_WDATA", "S_RESP"] },
+    { "name": "wen",          "wave": "0.........10........." },
+    {},
+    { "name": "tx_valid",     "wave": "0...........1........" },
+    { "name": "uart_txd_out", "wave": "1...........2..3..4..", "data": ["'A'", "ADDR", "DATA"] }
+  ],
+  "head": { "text": "UART Write Sequence: 'W' ADDR DATA  →  'A' ADDR DATA" },
+  "foot": { "text": "each division ≈ one UART byte time (≈ 87 µs at 115200 baud / 12 MHz)" },
+  "config": { "hscale": 2 }
+}
+```
+-->
+
+The FSM advances through S_IDLE → S_ADDR → S_WDATA → S_RESP as bytes arrive from the UART RX path. `wen` pulses for one cycle when the data byte is accepted; `uart_txd_out` then echoes `'A' ADDR DATA` as the acknowledgement.
 
 ### Why the split matters
 
