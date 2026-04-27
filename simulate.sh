@@ -92,6 +92,7 @@ iverilog -o ${BUILD_DIR}/${TB_MODULE}.vvp \
          library/uart/uart_rx.v \
          library/uart/uart_tx.v \
          ${SRC_DIR}/pwm_generator.v \
+         ${SRC_DIR}/gen/cmod7_reg_store.sv \
          ${SRC_DIR}/reg_ctrl.v \
          ${PLATFORM_DIR}/top.v \
          ${TB_FILE}

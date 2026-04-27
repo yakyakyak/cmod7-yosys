@@ -10,7 +10,10 @@ PART = xc7a35tcpg236-1
 PLATFORM_DIR = platforms/cmod_a7
 
 # Source files
-VERILOG_SRC = library/uart/uart_rx.v library/uart/uart_tx.v src/pwm_generator.v src/reg_ctrl.v $(PLATFORM_DIR)/top.v
+VERILOG_SRC = library/uart/uart_rx.v library/uart/uart_tx.v src/pwm_generator.v src/gen/cmod7_reg_store.sv src/reg_ctrl.v $(PLATFORM_DIR)/top.v
+
+# Register code generation
+REGGEN_INPUTS = regs/cmod7_regs.yaml $(wildcard regs/templates/*.j2)
 XDC_FILE = $(PLATFORM_DIR)/cmod_a7.xdc
 
 # Build directory
@@ -60,8 +63,10 @@ VVP_QUICK = $(BUILD_DIR)/tb_top_quick.vvp
 VVP_FULL = $(BUILD_DIR)/tb_top.vvp
 VVP_UART = $(BUILD_DIR)/tb_uart_reg.vvp
 
-TB_PWM_QUICK  = $(SIM_DIR)/tb_top_pwm_quick.v
-TB_PWM        = $(SIM_DIR)/tb_top_pwm.v
+TB_PWM_QUICK    = $(SIM_DIR)/tb_top_pwm_quick.v
+TB_PWM          = $(SIM_DIR)/tb_top_pwm.v
+TB_INTERACTIVE  = $(SIM_DIR)/tb_uart_interactive.v
+VVP_INTERACTIVE = $(BUILD_DIR)/tb_uart_interactive.vvp
 VCD_PWM_QUICK = $(BUILD_DIR)/tb_top_pwm_quick.vcd
 VCD_PWM       = $(BUILD_DIR)/tb_top_pwm.vcd
 VVP_PWM_QUICK = $(BUILD_DIR)/tb_top_pwm_quick.vvp
@@ -202,6 +207,19 @@ sim-vivado-pwm:
 
 # Vivado bitstream build targets
 VIVADO_BUILD_DIR = build/vivado
+
+src/gen/cmod7_reg_store.sv: $(REGGEN_INPUTS)
+	./regs/generate.sh
+
+$(VVP_INTERACTIVE): $(VERILOG_SRC) $(TB_INTERACTIVE) | $(BUILD_DIR)
+	iverilog -o $@ -g2012 $(SIM_INCLUDES) $(VERILOG_SRC) $(TB_INTERACTIVE)
+
+build-console: $(VVP_INTERACTIVE)
+
+sim-console: $(VVP_INTERACTIVE)
+	python3 tools/sim_console.py
+
+reggen: src/gen/cmod7_reg_store.sv
 
 build-vivado:
 	./build-vivado.sh
@@ -344,7 +362,8 @@ help:
 	@echo "  - openFPGALoader for programming"
 	@echo "  - CHIPDB and PRJXRAY_DB_DIR environment variables must be set"
 
-.PHONY: all synth pnr bitstream program program-flash clean help \
+.PHONY: all synth pnr bitstream program program-flash clean help reggen \
+        build-console sim-console \
         sim sim-quick sim-full sim-uart sim-pwm-quick sim-pwm \
         wave-quick wave-full wave-uart wave-pwm-quick wave-pwm clean-sim \
         sim-verilator sim-verilator-quick sim-verilator-full sim-verilator-uart \

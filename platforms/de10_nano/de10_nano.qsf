@@ -7,6 +7,7 @@ set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 # Source files (relative to this .qsf)
 set_global_assignment -name VERILOG_FILE ../../platforms/de10_nano/top.v
 set_global_assignment -name VERILOG_FILE ../../src/pwm_generator.v
+set_global_assignment -name SYSTEMVERILOG_FILE ../../src/gen/cmod7_reg_store.sv
 set_global_assignment -name VERILOG_FILE ../../src/reg_ctrl.v
 set_global_assignment -name VERILOG_FILE ../../library/uart/uart_rx.v
 set_global_assignment -name VERILOG_FILE ../../library/uart/uart_tx.v

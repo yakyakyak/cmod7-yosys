@@ -1,0 +1,59 @@
+name: cmod7
+info: |
+  Register map for CMOD A7-35T / DE10-Nano FPGA design.
+  8-bit data width, 8-bit address space.
+  Protocol: 8N1 UART at 115200 baud (Ping/Read/Write commands).
+
+data_width: 8
+
+regs:
+  - default:
+      width: 8
+      access: rw
+
+  - name: led_ctrl
+    desc: LED override values (manual mode)
+    fields:
+      - name: led
+        width: 2
+        desc: "bit[1:0] = LED[1:0]"
+
+  - name: led_mode
+    desc: LED mode select
+    fields:
+      - name: mode
+        width: 1
+        desc: "0=auto counter blink, 1=manual (LED_CTRL)"
+        enum:
+          0: AUTO
+          1: MANUAL
+
+  - name: pwm_duty
+    desc: PWM duty cycle (manual mode, 0=0%, 255=100%)
+
+  - name: pwm_mode
+    desc: PWM mode select
+    fields:
+      - name: mode
+        width: 1
+        desc: "0=auto breathing, 1=manual (PWM_DUTY)"
+        enum:
+          0: AUTO
+          1: MANUAL
+
+  - name: cnt_hi
+    access: ro
+    desc: counter[23:16] snapshot
+
+  - name: cnt_mid
+    access: ro
+    desc: counter[15:8] snapshot
+
+  - name: cnt_lo
+    access: ro
+    desc: counter[7:0] snapshot
+
+  - name: version
+    access: ro
+    init: 0xA7
+    desc: Board identifier (0xA7 = CMOD A7 / DE10-Nano)

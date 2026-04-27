@@ -1,4 +1,4 @@
-// Register controller: parses UART commands and manages register file
+// Register controller: parses UART commands and delegates register storage to reg_file.
 //
 // Protocol (8N1, 115200 baud):
 //   Ping:  TX 'P'           → RX 'P'
@@ -21,12 +21,12 @@ module reg_ctrl (
     input  wire        tx_ready,
 
     // LED control
-    output reg  [1:0]  led_ctrl,
-    output reg         led_mode,
+    output wire [1:0]  led_ctrl,
+    output wire        led_mode,
 
     // PWM control
-    output reg  [7:0]  pwm_duty_reg,
-    output reg         pwm_mode,
+    output wire [7:0]  pwm_duty_reg,
+    output wire        pwm_mode,
 
     // Counter snapshot (read-only registers 0x04–0x06)
     input  wire [23:0] counter
@@ -46,41 +46,57 @@ module reg_ctrl (
     reg [1:0] resp_idx = 2'd0;
     reg [1:0] resp_len = 2'd0;
 
-    // Power-on initial values (Xilinx supports FPGA register init; rst=0 never fires)
+    // Power-on initial values for TX state
     initial begin
-        led_ctrl     = 2'b00;
-        led_mode     = 1'b0;
-        pwm_duty_reg = 8'h00;
-        pwm_mode     = 1'b0;
-        tx_data      = 8'h00;
-        tx_valid     = 1'b0;
+        tx_data  = 8'h00;
+        tx_valid = 1'b0;
     end
 
-    function [7:0] reg_read;
-        input [7:0] addr;
-        case (addr)
-            8'h00: reg_read = {6'b0, led_ctrl};
-            8'h01: reg_read = {7'b0, led_mode};
-            8'h02: reg_read = pwm_duty_reg;
-            8'h03: reg_read = {7'b0, pwm_mode};
-            8'h04: reg_read = counter[23:16];
-            8'h05: reg_read = counter[15:8];
-            8'h06: reg_read = counter[7:0];
-            8'h07: reg_read = 8'hA7;
-            default: reg_read = 8'h00;
-        endcase
-    endfunction
+    // Register file interface
+    wire [7:0] rf_addr;
+    wire [7:0] rf_rdata;
+    wire       rf_addr_valid;
+    wire       rf_wen;
+
+    wire [1:0] rf_led_ctrl;
+    wire       rf_led_mode;
+    wire [7:0] rf_pwm_duty;
+    wire       rf_pwm_mode;
+
+    // Address: rx_data in S_ADDR (read path), cmd_addr in S_WDATA (write path)
+    assign rf_addr = (state == S_ADDR) ? rx_data : cmd_addr;
+
+    // Write enable: asserted combinationally so reg_file writes on the same posedge
+    assign rf_wen  = (state == S_WDATA) && rx_valid;
+
+    assign led_ctrl    = rf_led_ctrl;
+    assign led_mode    = rf_led_mode;
+    assign pwm_duty_reg = rf_pwm_duty;
+    assign pwm_mode    = rf_pwm_mode;
+
+    cmod7_reg_store u_reg_store (
+        .clk        (clk),
+        .addr       (rf_addr),
+        .wdata      (rx_data),
+        .wen        (rf_wen),
+        .rdata      (rf_rdata),
+        .addr_valid (rf_addr_valid),
+        .led_ctrl   (rf_led_ctrl),
+        .led_mode   (rf_led_mode),
+        .pwm_duty   (rf_pwm_duty),
+        .pwm_mode   (rf_pwm_mode),
+        .cnt_hi_ro  (counter[23:16]),
+        .cnt_mid_ro (counter[15:8]),
+        .cnt_lo_ro  (counter[7:0]),
+        .version_ro (8'hA7)
+    );
 
     always @(posedge clk) begin
         if (rst) begin
-            state        <= S_IDLE;
-            tx_valid     <= 1'b0;
-            led_ctrl     <= 2'b00;
-            led_mode     <= 1'b0;
-            pwm_duty_reg <= 8'h00;
-            pwm_mode     <= 1'b0;
-            resp_idx     <= 2'd0;
-            resp_len     <= 2'd0;
+            state    <= S_IDLE;
+            tx_valid <= 1'b0;
+            resp_idx <= 2'd0;
+            resp_len <= 2'd0;
         end else begin
             case (state)
 
@@ -113,11 +129,11 @@ module reg_ctrl (
                         if (cmd_write) begin
                             state <= S_WDATA;
                         end else begin
-                            // Build read response
-                            if (rx_data <= 8'h07) begin
+                            // Build read response using combinational reg_file outputs
+                            if (rf_addr_valid) begin
                                 resp[0] <= "A";
                                 resp[1] <= rx_data;
-                                resp[2] <= reg_read(rx_data);
+                                resp[2] <= rf_rdata;
                                 resp_len <= 2'd3;
                             end else begin
                                 resp[0] <= "N";
@@ -132,14 +148,8 @@ module reg_ctrl (
 
                 S_WDATA: begin
                     if (rx_valid) begin
-                        if (cmd_addr <= 8'h07) begin
-                            case (cmd_addr)
-                                8'h00: led_ctrl     <= rx_data[1:0];
-                                8'h01: led_mode     <= rx_data[0];
-                                8'h02: pwm_duty_reg <= rx_data;
-                                8'h03: pwm_mode     <= rx_data[0];
-                                default: ; // 0x04–0x07 are read-only, ignore
-                            endcase
+                        // rf_wen is already high (combinational); reg_file writes on this posedge
+                        if (rf_addr_valid) begin
                             resp[0] <= "A";
                             resp[1] <= cmd_addr;
                             resp[2] <= rx_data;

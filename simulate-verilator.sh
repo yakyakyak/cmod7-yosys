@@ -66,6 +66,7 @@ case ${TESTBENCH} in
             library/uart/uart_rx.v \
             library/uart/uart_tx.v \
             ${SRC_DIR}/pwm_generator.v \
+            ${SRC_DIR}/gen/cmod7_reg_store.sv \
             ${SRC_DIR}/reg_ctrl.v \
             ${PLATFORM_DIR}/top.v
         echo -e "${GREEN}✓${NC} Lint passed"
@@ -102,6 +103,7 @@ verilator --binary -sv -Wall \
     library/uart/uart_rx.v \
     library/uart/uart_tx.v \
     ${SRC_DIR}/pwm_generator.v \
+    ${SRC_DIR}/gen/cmod7_reg_store.sv \
     ${SRC_DIR}/reg_ctrl.v \
     ${PLATFORM_DIR}/top.v \
     ${TB_FILE} 2>&1

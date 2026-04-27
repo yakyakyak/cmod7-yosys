@@ -42,6 +42,7 @@ cat > "${TCL_SCRIPT}" << 'EOF'
 read_verilog library/uart/uart_rx.v
 read_verilog library/uart/uart_tx.v
 read_verilog src/pwm_generator.v
+read_verilog src/gen/cmod7_reg_store.sv
 read_verilog src/reg_ctrl.v
 read_verilog platforms/cmod_a7/top.v
 
