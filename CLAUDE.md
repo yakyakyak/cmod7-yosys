@@ -42,6 +42,12 @@ cd platforms/de10_nano && ./build.sh
 ```
 Output: `platforms/de10_nano/output_files/de10_nano.sof`. Requires Quartus at `~/altera_lite/25.1std/`.
 
+### Register Code Generation
+```bash
+make reggen                 # Regenerate src/gen/ and tools/gen/ from regs/cmod7_regs.yaml
+```
+Requires [regio](https://github.com/esnet/regio) installed (`pip install` from source). Generated files are **not** committed — `make reggen` runs automatically when YAML or templates are newer than the generated output.
+
 ### Simulation — Icarus Verilog
 ```bash
 ./simulate.sh               # Quick simulation (~65K cycles, <1s)
@@ -64,11 +70,23 @@ Requires Vivado at `~/vivado`; `settings64.sh` is sourced automatically.
 ./simulate-verilator.sh [quick|full|uart]
 ```
 
+### Interactive Simulation Console
+```bash
+make sim-console            # Build VVP + launch interactive register console
+python3 tools/sim_console.py --build   # Force rebuild before launching
+```
+The console connects a Python REPL to a live Icarus Verilog simulation via stdin/stdout pipes. Reads and writes are executed against the RTL; a shadow register map detects mismatches between written and read-back values.
+
+Console commands: `ping`, `read <addr>`, `write <addr> <val>`, `dump`, `reset`, `help`, `quit`. Addresses accept `0x` hex or decimal.
+
 ### Makefile Targets
 ```bash
+make reggen                 # Generate src/gen/ and tools/gen/ from YAML spec
 make sim-quick              # Icarus: quick simulation
 make sim-full               # Icarus: full simulation
 make sim-uart               # Icarus: UART register test
+make build-console          # Compile interactive testbench VVP
+make sim-console            # Build + launch interactive register console
 make wave-quick             # View quick waveform in Surfer
 make wave-full              # View full waveform in Surfer
 make wave-uart              # View UART waveform in Surfer
@@ -80,18 +98,24 @@ make clean-sim              # Remove simulation outputs
 
 ### Repository Layout
 ```
-platforms/cmod_a7/   top.v, cmod_a7.xdc, build.sh  (Artix-7 top + constraints)
-platforms/de10_nano/ top.v, de10_nano.qsf, build.sh (Cyclone V top + constraints)
-src/                 reg_ctrl.v, pwm_generator.v     (shared RTL)
-library/uart/        uart_rx.v, uart_tx.v            (shared UART library)
-sim/                 tb_top*.v, tb_uart_reg.v         (shared testbenches)
+platforms/cmod_a7/      top.v, cmod_a7.xdc, build.sh  (Artix-7 top + constraints)
+platforms/de10_nano/    top.v, de10_nano.qsf, build.sh (Cyclone V top + constraints)
+src/                    reg_ctrl.v, pwm_generator.v    (shared RTL)
+src/gen/                cmod7_reg_store.sv, *.sv       (generated — not committed)
+library/uart/           uart_rx.v, uart_tx.v           (shared UART library)
+regs/                   cmod7_regs.yaml                (register spec — single source of truth)
+regs/templates/common/  *.j2                           (Jinja2 templates for regio)
+sim/                    tb_top*.v, tb_uart_reg.v, tb_uart_interactive.v
+tools/                  reg_access.py, reg_access_jtag.py, sim_console.py
+tools/gen/              cmod7_block.py                 (generated — not committed)
 ```
 
 ### Hardware Design
 Each platform's `top.v` wires shared modules around a free-running counter:
 
 - **`library/uart/uart_rx.v`** / **`uart_tx.v`**: 8N1 UART (CLK_FREQ/BAUD_RATE parameterized)
-- **`src/reg_ctrl.v`**: 4-state FSM (IDLE→ADDR→WDATA→RESP); Ping/Read/Write protocol; drives `led_ctrl`, `led_mode`, `pwm_duty_reg`, `pwm_mode`
+- **`src/reg_ctrl.v`**: 4-state FSM (IDLE→ADDR→WDATA→RESP); Ping/Read/Write protocol; instantiates `cmod7_reg_store`
+- **`src/gen/cmod7_reg_store.sv`**: generated register storage — combinational read mux, synchronous writes, RO passthrough; transport-agnostic internal bus (`addr/wdata/wen/rdata/addr_valid`)
 - **`src/pwm_generator.v`**: duty comparator; PWM freq = CLK / 2^COUNTER_WIDTH
 
 ### UART Register Protocol
@@ -123,13 +147,27 @@ Register map: LED_CTRL (0x00), LED_MODE (0x01), PWM_DUTY (0x02), PWM_MODE (0x03)
 - **`sim/tb_top.v`**: ~8M cycles, full LED toggle period
 - **`sim/tb_top_pwm_quick.v`**: ~65K cycles, PWM duty cycle measurement
 - **`sim/tb_top_pwm.v`**: Full PWM simulation
-- **`sim/tb_uart_reg.v`**: Integration test — drives UART bit-by-bit, checks ping/read/write/NAK
+- **`sim/tb_uart_reg.v`**: Integration test — drives UART bit-by-bit, checks ping/read/write/NAK (24 assertions)
+- **`sim/tb_uart_interactive.v`**: Driven by `sim_console.py`; reads commands from stdin, drives UART, prints responses
+
+### Register Code Generation
+Register map is defined once in `regs/cmod7_regs.yaml` and generated into:
+- `src/gen/cmod7_reg_store.sv` — Verilog register storage module
+- `src/gen/cmod7_reg_pkg.sv` — `` `define `` address and field constants
+- `tools/gen/cmod7_block.py` — Python `REGISTER_NAMES` / `REGISTER_ACCESS` dicts
+
+Templates live in `regs/templates/common/` (transport-agnostic storage). Future transport-specific wrappers (PCIe, file I/O) would add subdirectories alongside `common/` and instantiate `cmod7_reg_store`.
 
 ### Tools
-- **`tools/reg_access.py`**: Host-side Python CLI. Requires `pyserial`.
+- **`tools/reg_access.py`**: Host-side Python CLI over USB-UART. Requires `pyserial`.
   ```bash
   python tools/reg_access.py /dev/tty.usbserial-XXXXB ping
   python tools/reg_access.py /dev/tty.usbserial-XXXXB write 0x01 1
+  ```
+- **`tools/reg_access_jtag.py`**: Same interface over JTAG UART (DE10-Nano). Requires Quartus `quartus_stp`.
+- **`tools/sim_console.py`**: Interactive register console backed by Icarus Verilog simulation. No hardware required.
+  ```bash
+  make sim-console
   ```
 
 ## Platform-Specific Notes
